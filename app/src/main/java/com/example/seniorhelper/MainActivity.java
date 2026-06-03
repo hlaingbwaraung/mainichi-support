@@ -1428,6 +1428,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
         if (isPremiumActive()) {
             root.addView(bodyText("現在、広告は非表示です。"));
+            Button cancel = bigButton("プレミアムをキャンセル", "プレミアム会員をキャンセル", COLOR_EMERGENCY, new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    cancelPremiumForTesting();
+                }
+            });
+            root.addView(cancel);
         } else {
             root.addView(bodyText("実際の課金にはGoogle Playの商品IDが必要です。"));
             addAdBanner();
@@ -2532,6 +2539,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private void activatePremiumForTesting() {
         prefs().edit().putBoolean(KEY_PREMIUM_ACTIVE, true).apply();
         Toast.makeText(this, "プレミアム会員になりました", Toast.LENGTH_LONG).show();
+        showPremiumScreen();
+    }
+
+    private void cancelPremiumForTesting() {
+        prefs().edit().putBoolean(KEY_PREMIUM_ACTIVE, false).apply();
+        Toast.makeText(this, "プレミアム会員をキャンセルしました", Toast.LENGTH_LONG).show();
         showPremiumScreen();
     }
 
