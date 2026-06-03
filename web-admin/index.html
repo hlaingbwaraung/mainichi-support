@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>まいにちサポート 管理画面</title>
+  <style>
+    :root {
+      --bg: #faf8f3;
+      --card: #fffffc;
+      --text: #1d1e20;
+      --muted: #625d56;
+      --line: #e0d7c3;
+      --gold: #b08939;
+      --charcoal: #222426;
+      --green: #505e34;
+      --blue: #27575e;
+      --red: #8b372d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.15;
+      border-left: 5px solid var(--gold);
+      padding-left: 14px;
+    }
+
+    .updated {
+      color: var(--muted);
+      font-size: 16px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .notice {
+      background: #fff8e8;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin-bottom: 18px;
+      font-size: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 16px;
+      min-height: 110px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+
+    .value {
+      font-size: 34px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .gold { color: var(--gold); }
+    .blue { color: var(--blue); }
+    .green { color: var(--green); }
+    .red { color: var(--red); }
+
+    .wide {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+      gap: 12px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+    }
+
+    .bars {
+      display: grid;
+      gap: 12px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 110px 1fr 52px;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+    }
+
+    .track {
+      height: 20px;
+      background: #f1ede4;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .fill {
+      height: 100%;
+      width: 0;
+      background: var(--charcoal);
+      transition: width 250ms ease;
+    }
+
+    .summary-list {
+      display: grid;
+      gap: 10px;
+      font-size: 18px;
+    }
+
+    .summary-list div {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid #eee8da;
+      padding-bottom: 8px;
+    }
+
+    @media (max-width: 760px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .updated {
+        text-align: left;
+      }
+
+      .grid,
+      .wide {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-row {
+        grid-template-columns: 82px 1fr 42px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>まいにちサポート<br>管理画面</h1>
+      <div class="updated" id="updated">更新: --</div>
+    </header>
+
+    <div class="notice" id="notice">データを読み込み中です。</div>
+
+    <section class="grid">
+      <div class="card">
+        <div class="label">ユーザー数</div>
+        <div class="value" id="totalUsers">--</div>
+      </div>
+      <div class="card">
+        <div class="label">プレミアム会員</div>
+        <div class="value gold" id="premiumMembers">--</div>
+      </div>
+      <div class="card">
+        <div class="label">無料ユーザー</div>
+        <div class="value blue" id="freeUsers">--</div>
+      </div>
+      <div class="card">
+        <div class="label">登録率</div>
+        <div class="value green" id="premiumRate">--</div>
+      </div>
+    </section>
+
+    <section class="wide">
+      <div class="card">
+        <h2>利用データ</h2>
+        <div class="bars" id="bars"></div>
+      </div>
+      <div class="card">
+        <h2>平均</h2>
+        <div class="summary-list">
+          <div><span>7日平均歩数</span><strong id="averageSteps7Days">--</strong></div>
+          <div><span>予定</span><strong id="events">--</strong></div>
+          <div><span>薬アラーム</span><strong id="medicines">--</strong></div>
+          <div><span>今日やること</span><strong id="todos">--</strong></div>
+          <div><span>買い物リスト</span><strong id="shoppingItems">--</strong></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const yen = new Intl.NumberFormat("ja-JP");
+
+    function setText(id, value) {
+      document.getElementById(id).textContent = value;
+    }
+
+    function renderBars(data) {
+      const items = [
+        ["ユーザー", data.totalUsers],
+        ["有料会員", data.premiumMembers],
+        ["予定", data.events],
+        ["薬", data.medicines],
+        ["TODO", data.todos],
+        ["買い物", data.shoppingItems]
+      ];
+      const max = Math.max(1, ...items.map(([, value]) => value));
+      const bars = document.getElementById("bars");
+      bars.innerHTML = "";
+      for (const [label, value] of items) {
+        const row = document.createElement("div");
+        row.className = "bar-row";
+        const name = document.createElement("div");
+        name.textContent = label;
+        const track = document.createElement("div");
+        track.className = "track";
+        const fill = document.createElement("div");
+        fill.className = "fill";
+        fill.style.width = `${Math.max(4, (value / max) * 100)}%`;
+        track.appendChild(fill);
+        const count = document.createElement("strong");
+        count.textContent = yen.format(value);
+        row.append(name, track, count);
+        bars.appendChild(row);
+      }
+    }
+
+    async function load() {
+      const response = await fetch("admin-data.json", { cache: "no-store" });
+      const data = await response.json();
+      setText("updated", `更新: ${data.updatedAt}`);
+      setText("notice", data.note);
+      setText("totalUsers", `${yen.format(data.totalUsers)}人`);
+      setText("premiumMembers", `${yen.format(data.premiumMembers)}人`);
+      setText("freeUsers", `${yen.format(data.freeUsers)}人`);
+      setText("premiumRate", `${data.premiumRate}%`);
+      setText("averageSteps7Days", `${yen.format(data.averageSteps7Days)}歩`);
+      setText("events", `${yen.format(data.events)}件`);
+      setText("medicines", `${yen.format(data.medicines)}件`);
+      setText("todos", `${yen.format(data.todos)}件`);
+      setText("shoppingItems", `${yen.format(data.shoppingItems)}件`);
+      renderBars(data);
+    }
+
+    load().catch(() => {
+      setText("notice", "データを読み込めませんでした。");
+    });
+  </script>
+</body>
+</html>
