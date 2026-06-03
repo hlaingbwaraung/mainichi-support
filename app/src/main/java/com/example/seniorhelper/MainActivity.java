@@ -231,7 +231,20 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 showSettings();
             }
         }),
+                homeFeatureButton("管理画面", "管理ダッシュボードを開く", COLOR_ACCENT, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showAdminDashboard();
+            }
+        }));
+        addHomeFeatureRow(featureGrid,
                 homeFeatureButton("読み上げ", "今日の内容を読み上げ", COLOR_ACCENT, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                speakText(buildTodaySpeech());
+            }
+        }),
+                homeFeatureButton("今日を確認", "今日のまとめを読み上げ", COLOR_PRIMARY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 speakText(buildTodaySpeech());
@@ -1432,6 +1445,101 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             root.addView(bodyText("実際の課金にはGoogle Playの商品IDが必要です。"));
             addAdBanner();
         }
+    }
+
+    private void showAdminDashboard() {
+        beginScreen("管理画面", "利用状況の確認");
+        root.addView(backButton());
+
+        int totalUsers = 1;
+        int premiumMembers = isPremiumActive() ? 1 : 0;
+        int freeUsers = totalUsers - premiumMembers;
+        int premiumRate = totalUsers == 0 ? 0 : Math.round((premiumMembers * 100f) / totalUsers);
+        int[] weeklySteps = getWeeklySteps();
+        int averageSteps = averageOfPositiveValues(weeklySteps);
+        int totalEvents = loadEvents().size();
+        int totalMedicines = loadTimedList(KEY_MEDICINES).size();
+        int todoCount = loadTodos().size();
+        int shoppingCount = loadShoppingItems().size();
+
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.addView(adminMetricCard("ユーザー数", totalUsers + "人", COLOR_PRIMARY), metricParams(false));
+        row1.addView(adminMetricCard("プレミアム", premiumMembers + "人", COLOR_ACCENT), metricParams(true));
+        root.addView(row1, matchWrapWithBottom(8));
+
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.addView(adminMetricCard("無料ユーザー", freeUsers + "人", COLOR_SECONDARY), metricParams(false));
+        row2.addView(adminMetricCard("登録率", premiumRate + "%", COLOR_STEPS), metricParams(true));
+        root.addView(row2, matchWrapWithBottom(8));
+
+        LinearLayout averages = card();
+        averages.addView(sectionTitle("平均・利用データ"));
+        averages.addView(compactBodyText("7日平均歩数: " + averageSteps + "歩"));
+        averages.addView(compactBodyText("予定: " + totalEvents + "件"));
+        averages.addView(compactBodyText("薬アラーム: " + totalMedicines + "件"));
+        averages.addView(compactBodyText("今日やること: " + todoCount + "件"));
+        averages.addView(compactBodyText("買い物リスト: " + shoppingCount + "件"));
+        root.addView(averages);
+
+        LinearLayout graphPanel = card();
+        graphPanel.addView(sectionTitle("7日間の平均グラフ"));
+        AdminBarView graph = new AdminBarView(this);
+        graph.setValues(new int[]{
+                Math.max(1, totalUsers),
+                Math.max(0, premiumMembers),
+                Math.max(0, totalEvents),
+                Math.max(0, totalMedicines),
+                Math.max(0, todoCount),
+                Math.max(0, shoppingCount)
+        });
+        graph.setLabels(new String[]{"利用", "有料", "予定", "薬", "TODO", "買物"});
+        graphPanel.addView(graph, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(190)
+        ));
+        root.addView(graphPanel);
+
+        root.addView(bodyText("※ 現在はこの端末内のテスト集計です。全ユーザーの実数を見るにはサーバー連携が必要です。"));
+        addAdBanner();
+    }
+
+    private LinearLayout.LayoutParams metricParams(boolean right) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        params.setMargins(right ? dp(6) : 0, 0, right ? 0 : dp(6), 0);
+        return params;
+    }
+
+    private LinearLayout adminMetricCard(String label, String value, int color) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(12), dp(12), dp(12), dp(12));
+        card.setBackground(japaneseBox(COLOR_CARD, 6, 1, COLOR_LINE));
+
+        TextView labelView = compactBodyText(label);
+        labelView.setTextColor(COLOR_MUTED);
+        card.addView(labelView);
+
+        TextView valueView = bodyText(value);
+        valueView.setTextSize(scaledTextSize(28));
+        valueView.setTypeface(Typeface.DEFAULT_BOLD);
+        valueView.setTextColor(color);
+        valueView.setGravity(Gravity.CENTER);
+        card.addView(valueView);
+        return card;
+    }
+
+    private int averageOfPositiveValues(int[] values) {
+        int total = 0;
+        int count = 0;
+        for (int value : values) {
+            if (value > 0) {
+                total += value;
+                count++;
+            }
+        }
+        return count == 0 ? 0 : Math.round(total / (float) count);
     }
 
     private void showSettings() {
@@ -2640,6 +2748,69 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             this.amount = amount;
             this.number = number;
             this.bought = bought;
+        }
+    }
+
+    private class AdminBarView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private int[] values = new int[0];
+        private String[] labels = new String[0];
+
+        AdminBarView(Context context) {
+            super(context);
+        }
+
+        void setValues(int[] values) {
+            this.values = values;
+            invalidate();
+        }
+
+        void setLabels(String[] labels) {
+            this.labels = labels;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int width = getWidth();
+            int height = getHeight();
+            int left = dp(10);
+            int right = width - dp(10);
+            int top = dp(12);
+            int bottom = height - dp(38);
+            int max = 1;
+            for (int value : values) {
+                max = Math.max(max, value);
+            }
+
+            paint.setStrokeWidth(dp(1));
+            paint.setColor(COLOR_LINE);
+            canvas.drawLine(left, bottom, right, bottom, paint);
+
+            int count = values.length;
+            if (count == 0) {
+                return;
+            }
+            float gap = dp(7);
+            float barWidth = (right - left - gap * (count - 1)) / count;
+            for (int i = 0; i < count; i++) {
+                float x = left + i * (barWidth + gap);
+                float ratio = values[i] / (float) max;
+                float barTop = bottom - Math.max(dp(8), (bottom - top) * ratio);
+                paint.setColor(i == 1 ? COLOR_ACCENT : COLOR_PRIMARY);
+                canvas.drawRoundRect(new RectF(x, barTop, x + barWidth, bottom), dp(4), dp(4), paint);
+
+                paint.setColor(COLOR_TEXT);
+                paint.setTextAlign(Paint.Align.CENTER);
+                paint.setTextSize(dp(12));
+                canvas.drawText(String.valueOf(values[i]), x + barWidth / 2, barTop - dp(4), paint);
+
+                paint.setColor(COLOR_MUTED);
+                paint.setTextSize(dp(12));
+                String label = i < labels.length ? labels[i] : "";
+                canvas.drawText(label, x + barWidth / 2, height - dp(12), paint);
+            }
         }
     }
 
