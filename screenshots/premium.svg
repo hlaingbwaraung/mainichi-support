@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#f8f3e9"/>
+<path d="M0 0H390V844H0Z" fill="#f8f3e9"/>
+<path d="M0 28H390M0 56H390M0 84H390M0 112H390M0 140H390M0 168H390M0 196H390M0 224H390M0 252H390M0 280H390M0 308H390M0 336H390M0 364H390M0 392H390M0 420H390M0 448H390M0 476H390M0 504H390M0 532H390M0 560H390M0 588H390M0 616H390M0 644H390M0 672H390M0 700H390M0 728H390M0 756H390M0 784H390M0 812H390" stroke="#bf4739" stroke-opacity="0.025"/>
+<path d="M28 0V844M56 0V844M84 0V844M112 0V844M140 0V844M168 0V844M196 0V844M224 0V844M252 0V844M280 0V844M308 0V844M336 0V844M364 0V844" stroke="#1f4c7c" stroke-opacity="0.035"/>
+<rect x="20" y="18" width="6" height="34" rx="3" fill="#bf4739"/>
+<text x="36" y="42" font-family="sans-serif" font-size="32" font-weight="700" fill="#22272e">プレミアム</text>
+<text x="20" y="76" font-family="sans-serif" font-size="22" fill="#5c626a">月額300円で広告なし</text>
+<rect x="20" y="118" width="350" height="56" rx="8" fill="#5c6670"/>
+<text x="195" y="155" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#ffffff">戻る</text>
+<rect x="20" y="188" width="350" height="170" rx="8" fill="#fffdf8" stroke="#ded3c3" stroke-width="1"/>
+<text x="36" y="222" font-family="sans-serif" font-size="30" font-weight="700" fill="#22272e">プレミアム会員</text>
+<text x="36" y="264" font-family="sans-serif" font-size="22"  fill="#22272e">月額 300円</text>
+<text x="36" y="294" font-family="sans-serif" font-size="22"  fill="#22272e">Google広告を表示しません。</text>
+<text x="36" y="324" font-family="sans-serif" font-size="22"  fill="#22272e">すべての機能をそのまま使えます。</text>
+<rect x="20" y="372" width="350" height="88" rx="8" fill="#bf4739"/>
+<text x="195" y="425" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#ffffff">月額300円で登録</text>
+<text x="20" y="496" font-family="sans-serif" font-size="22"  fill="#22272e">起動5秒後におすすめ表示。</text>
+</svg>

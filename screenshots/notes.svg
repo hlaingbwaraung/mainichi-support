@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#f8f3e9"/>
+<path d="M0 0H390V844H0Z" fill="#f8f3e9"/>
+<path d="M0 28H390M0 56H390M0 84H390M0 112H390M0 140H390M0 168H390M0 196H390M0 224H390M0 252H390M0 280H390M0 308H390M0 336H390M0 364H390M0 392H390M0 420H390M0 448H390M0 476H390M0 504H390M0 532H390M0 560H390M0 588H390M0 616H390M0 644H390M0 672H390M0 700H390M0 728H390M0 756H390M0 784H390M0 812H390" stroke="#bf4739" stroke-opacity="0.025"/>
+<path d="M28 0V844M56 0V844M84 0V844M112 0V844M140 0V844M168 0V844M196 0V844M224 0V844M252 0V844M280 0V844M308 0V844M336 0V844M364 0V844" stroke="#1f4c7c" stroke-opacity="0.035"/>
+<rect x="20" y="18" width="6" height="34" rx="3" fill="#bf4739"/>
+<text x="36" y="42" font-family="sans-serif" font-size="32" font-weight="700" fill="#22272e">メモ</text>
+<text x="20" y="76" font-family="sans-serif" font-size="22" fill="#5c626a">大きな文字で見やすいメモ</text>
+<rect x="20" y="118" width="350" height="56" rx="8" fill="#5c6670"/>
+<text x="195" y="155" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#ffffff">戻る</text>
+<text x="20" y="212" font-family="sans-serif" font-size="24" font-weight="700" fill="#22272e">新しいメモ</text>
+<rect x="20" y="230" width="350" height="130" rx="8" fill="#ffffff" stroke="#ded3c3" stroke-width="2"/>
+<text x="36" y="267" font-family="sans-serif" font-size="22" fill="#5c626a">メモを書く</text>
+<rect x="20" y="374" width="350" height="88" rx="8" fill="#1f4c7c"/>
+<text x="195" y="427" text-anchor="middle" font-family="sans-serif" font-size="26" font-weight="700" fill="#ffffff">メモを追加</text>
+<rect x="20" y="476" width="350" height="132" rx="8" fill="#fffdf8" stroke="#ded3c3" stroke-width="1"/>
+<text x="36" y="510" font-family="sans-serif" font-size="22"  fill="#22272e">牛乳を買う</text>
+<rect x="36" y="544" width="318" height="50" rx="8" fill="#5c6670"/>
+<text x="195" y="576" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#ffffff">削除</text>
+<rect x="20" y="622" width="350" height="132" rx="8" fill="#fffdf8" stroke="#ded3c3" stroke-width="1"/>
+<text x="36" y="656" font-family="sans-serif" font-size="22"  fill="#22272e">19時に家族へ電話</text>
+<rect x="36" y="690" width="318" height="50" rx="8" fill="#5c6670"/>
+<text x="195" y="722" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#ffffff">削除</text>
+<rect x="20" y="768" width="350" height="160" rx="8" fill="#f5f0e8" stroke="#ded3c3" stroke-width="1"/>
+<text x="36" y="800" font-family="sans-serif" font-size="18" fill="#5c626a">Google広告</text>
+<text x="36" y="838" font-family="sans-serif" font-size="22" font-weight="700" fill="#22272e">広告なしで使えます</text>
+<rect x="36" y="862" width="318" height="50" rx="8" fill="#bf4739"/>
+<text x="195" y="894" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#ffffff">広告を消す</text>
+</svg>

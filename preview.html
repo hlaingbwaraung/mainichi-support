@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>まいにちサポート プレビュー</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8f3e9;
+      --text: #22272e;
+      --muted: #5c626a;
+      --primary: #1f4c7c;
+      --danger: #b33f34;
+      --accent: #bf4739;
+      --card: #fffdf8;
+      --line: #ded3c3;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      background-image:
+        linear-gradient(90deg, rgba(31, 76, 124, 0.035) 1px, transparent 1px),
+        linear-gradient(rgba(191, 71, 57, 0.025) 1px, transparent 1px);
+      background-size: 28px 28px;
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      min-height: 100vh;
+    }
+
+    main {
+      width: min(520px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 24px 20px 36px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      border-left: 6px solid var(--accent);
+      padding-left: 10px;
+      font-size: 36px;
+      line-height: 1.05;
+    }
+
+    .subtitle {
+      margin: 0 0 24px;
+      color: var(--muted);
+      font-size: 22px;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    button {
+      width: 100%;
+      min-height: 88px;
+      margin: 0 0 14px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--primary);
+      color: white;
+      font-size: 26px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      min-height: 56px;
+      background: #5c6670;
+      font-size: 20px;
+    }
+
+    button.danger {
+      background: var(--danger);
+    }
+
+    .body-text {
+      margin: 0 0 14px;
+      font-size: 22px;
+      line-height: 1.25;
+    }
+
+    .card {
+      margin: 0 0 14px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--card);
+    }
+
+    .ad {
+      margin: 0 0 14px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f5f0e8;
+    }
+
+    .ad small {
+      display: block;
+      color: var(--muted);
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .graph {
+      height: 150px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      align-items: end;
+      padding-top: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .bar {
+      display: flex;
+      min-width: 0;
+      height: 100%;
+      flex-direction: column;
+      justify-content: end;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .bar span:first-child {
+      width: 100%;
+      min-height: 10px;
+      border-radius: 5px 5px 0 0;
+      background: var(--primary);
+    }
+
+    .bar.today span:first-child {
+      background: var(--accent);
+    }
+
+    label {
+      display: block;
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 700;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      min-height: 58px;
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      color: var(--text);
+      font-size: 22px;
+    }
+
+    textarea {
+      min-height: 130px;
+      resize: vertical;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="home" class="screen active">
+      <h1>まいにちサポート</h1>
+      <p class="subtitle">今日</p>
+      <p class="section-title">使いたい機能を選んでください</p>
+      <button onclick="showScreen('walk')">歩行アラーム</button>
+      <button onclick="showScreen('notes')">メモ</button>
+      <button onclick="showScreen('calendar')">予定</button>
+      <button onclick="showScreen('premium')">広告を消す</button>
+      <div class="ad">
+        <small>Google広告</small>
+        <p class="body-text"><strong>広告なしで使えます</strong></p>
+        <button class="secondary" onclick="showScreen('premium')">広告を消す</button>
+      </div>
+    </section>
+
+    <section id="walk" class="screen">
+      <h1>歩行アラーム</h1>
+      <p class="subtitle">歩いている時のやさしいお知らせ</p>
+      <button class="secondary" onclick="showScreen('home')">戻る</button>
+      <div class="card">
+        <p class="body-text"><strong>今日の歩数</strong></p>
+        <p class="body-text" style="font-size: 34px; font-weight: 700;">3,284 歩</p>
+        <p class="body-text">スマートフォンの歩数センサーで自動で数えます</p>
+        <p class="body-text"><strong>7日間の歩数</strong></p>
+        <div class="graph" aria-label="7日間の歩数グラフ">
+          <div class="bar"><span style="height: 42%;"></span><span>月</span></div>
+          <div class="bar"><span style="height: 55%;"></span><span>火</span></div>
+          <div class="bar"><span style="height: 36%;"></span><span>水</span></div>
+          <div class="bar"><span style="height: 72%;"></span><span>木</span></div>
+          <div class="bar"><span style="height: 61%;"></span><span>金</span></div>
+          <div class="bar"><span style="height: 86%;"></span><span>土</span></div>
+          <div class="bar today"><span style="height: 66%;"></span><span>日</span></div>
+        </div>
+      </div>
+      <p id="walkStatus" class="body-text"><strong>歩行アラームはオフです</strong></p>
+      <label for="minutes">お知らせする分数</label>
+      <select id="minutes">
+        <option>5</option>
+        <option>10</option>
+        <option selected>15</option>
+        <option>20</option>
+        <option>30</option>
+        <option>45</option>
+        <option>60</option>
+      </select>
+      <button id="walkToggle" onclick="toggleWalk()">開始する</button>
+      <p class="body-text">通知と振動でお知らせします。</p>
+      <div class="ad">
+        <small>Google広告</small>
+        <p class="body-text"><strong>広告なしで使えます</strong></p>
+        <button class="secondary" onclick="showScreen('premium')">広告を消す</button>
+      </div>
+    </section>
+
+    <section id="notes" class="screen">
+      <h1>メモ</h1>
+      <p class="subtitle">大きな文字で見やすいメモ</p>
+      <button class="secondary" onclick="showScreen('home')">戻る</button>
+      <label for="noteText">新しいメモ</label>
+      <textarea id="noteText" placeholder="メモを書く"></textarea>
+      <button onclick="addNote()">メモを追加</button>
+      <div id="notesList"></div>
+      <div class="ad">
+        <small>Google広告</small>
+        <p class="body-text"><strong>広告なしで使えます</strong></p>
+        <button class="secondary" onclick="showScreen('premium')">広告を消す</button>
+      </div>
+    </section>
+
+    <section id="calendar" class="screen">
+      <h1>予定</h1>
+      <p class="subtitle">かんたんな予定のお知らせ</p>
+      <button class="secondary" onclick="showScreen('home')">戻る</button>
+      <label for="eventTitle">予定の名前</label>
+      <input id="eventTitle" placeholder="病院">
+      <label for="eventTime">日付と時間</label>
+      <input id="eventTime" type="datetime-local">
+      <button onclick="addEvent()">予定を追加</button>
+      <div id="eventsList"></div>
+      <div class="ad">
+        <small>Google広告</small>
+        <p class="body-text"><strong>広告なしで使えます</strong></p>
+        <button class="secondary" onclick="showScreen('premium')">広告を消す</button>
+      </div>
+    </section>
+
+    <section id="premium" class="screen">
+      <h1>プレミアム</h1>
+      <p class="subtitle">月額300円で広告なし</p>
+      <button class="secondary" onclick="showScreen('home')">戻る</button>
+      <div class="card">
+        <p class="body-text" style="font-size: 30px;"><strong>プレミアム会員</strong></p>
+        <p class="body-text">月額 300円</p>
+        <p class="body-text">Google広告を表示しません。</p>
+        <p class="body-text">すべての機能をそのまま使えます。</p>
+      </div>
+      <button class="danger">月額300円で登録</button>
+      <p class="body-text">起動5秒後におすすめ表示。</p>
+    </section>
+  </main>
+
+  <script>
+    let walking = false;
+    const notes = ['牛乳を買う', '19時に家族へ電話'];
+    const events = ['薬を飲む - 明日 8:00', '病院 - 金曜日 10:30'];
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function toggleWalk() {
+      walking = !walking;
+      document.getElementById('walkStatus').innerHTML = walking
+        ? '<strong>歩行アラームはオンです</strong>'
+        : '<strong>歩行アラームはオフです</strong>';
+      const button = document.getElementById('walkToggle');
+      button.textContent = walking ? '停止する' : '開始する';
+      button.classList.toggle('danger', walking);
+    }
+
+    function addNote() {
+      const input = document.getElementById('noteText');
+      const value = input.value.trim();
+      if (!value) return;
+      notes.unshift(value);
+      input.value = '';
+      renderNotes();
+    }
+
+    function addEvent() {
+      const title = document.getElementById('eventTitle');
+      const time = document.getElementById('eventTime');
+      if (!title.value.trim()) return;
+      events.unshift(title.value.trim() + (time.value ? ' - ' + time.value.replace('T', ' ') : ''));
+      title.value = '';
+      time.value = '';
+      renderEvents();
+    }
+
+    function renderNotes() {
+      const target = document.getElementById('notesList');
+      target.innerHTML = notes.map((note, index) => `
+        <div class="card">
+          <p class="body-text">${escapeHtml(note)}</p>
+          <button class="secondary" onclick="notes.splice(${index}, 1); renderNotes()">削除</button>
+        </div>
+      `).join('');
+    }
+
+    function renderEvents() {
+      const target = document.getElementById('eventsList');
+      target.innerHTML = events.map((event, index) => `
+        <div class="card">
+          <p class="body-text"><strong>${escapeHtml(event)}</strong></p>
+          <button class="secondary" onclick="events.splice(${index}, 1); renderEvents()">削除</button>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      }[char]));
+    }
+
+    renderNotes();
+    renderEvents();
+  </script>
+</body>
+</html>

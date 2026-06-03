@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#faf8f3"/>
+<path d="M0 42H390M0 84H390M0 126H390M0 168H390M0 210H390M0 252H390M0 294H390M0 336H390M0 378H390M0 420H390M0 462H390M0 504H390M0 546H390M0 588H390M0 630H390M0 672H390M0 714H390M0 756H390M0 798H390" stroke="#b08939" stroke-opacity="0.10"/>
+<path d="M42 0V844M84 0V844M126 0V844M168 0V844M210 0V844M252 0V844M294 0V844M336 0V844M378 0V844" stroke="#222426" stroke-opacity="0.08"/>
+<rect x="20" y="22" width="4" height="34" fill="#b08939"/>
+<text x="36" y="46" font-family="sans-serif" font-size="31" font-weight="700" fill="#1d1e20">歩数計</text>
+<text x="20" y="84" font-family="sans-serif" font-size="20" fill="#605d56">今日の歩数を大きく表示</text>
+<rect x="20" y="126" width="350" height="56" rx="6" fill="#5c5850" stroke="#b08939" stroke-width="1"/>
+<text x="195" y="162" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="700" fill="#fff">戻る</text>
+<rect x="20" y="196" width="350" height="154" rx="6" fill="#fffffc" stroke="#e0d7c3" stroke-width="1"/>
+<text x="36" y="232" font-family="sans-serif" font-size="22" font-weight="700" fill="#1d1e20">今日の歩数</text>
+<text x="36" y="266" font-family="sans-serif" font-size="34" font-weight="700" fill="#1d1e20">3,284 歩</text>
+<text x="36" y="308" font-family="sans-serif" font-size="22" font-weight="700" fill="#1d1e20">7日間の歩数</text>
+<line x1="36" y1="314" x2="354" y2="314" stroke="#e0d7c3"/>
+<rect x="36" y="270.04651162790697" width="38.57142857142857" height="43.95348837209303" rx="5" fill="#222426"/>
+<text x="55.285714285714285" y="340" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#605d56">月</text>
+<rect x="82.57142857142857" y="255.3953488372093" width="38.57142857142857" height="58.604651162790695" rx="5" fill="#222426"/>
+<text x="101.85714285714286" y="340" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#605d56">火</text>
+<rect x="129.14285714285714" y="274.2325581395349" width="38.57142857142857" height="39.76744186046512" rx="5" fill="#222426"/>
+<text x="148.42857142857142" y="340" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#605d56">水</text>
+<rect x="175.71428571428572" y="238.65116279069767" width="38.57142857142857" height="75.34883720930233" rx="5" fill="#222426"/>
+<text x="195" y="340" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#605d56">木</text>
+<rect x="222.28571428571428" y="249.11627906976744" width="38.57142857142857" height="64.88372093023256" rx="5" fill="#222426"/>
+<text x="241.57142857142856" y="340" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#605d56">金</text>
+<rect x="268.85714285714283" y="224" width="38.57142857142857" height="90" rx="5" fill="#222426"/>
+<text x="288.1428571428571" y="340" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#605d56">土</text>
+<rect x="315.42857142857144" y="245.2651162790698" width="38.57142857142857" height="68.73488372093023" rx="5" fill="#b08939"/>
+<text x="334.7142857142857" y="340" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#605d56">日</text>
+</svg>
