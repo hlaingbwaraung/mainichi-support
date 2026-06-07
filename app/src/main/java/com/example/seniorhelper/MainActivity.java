@@ -389,16 +389,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             weatherView.setText("--℃ 位置許可");
             return;
         }
-        Location lastLocation = getBestLastLocation();
-        if (lastLocation != null) {
-            fetchWeatherForLocation(lastLocation.getLatitude(), lastLocation.getLongitude());
-            return;
-        }
         requestOneWeatherLocation();
     }
 
     private boolean hasLocationPermission() {
-        return checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     private Location getBestLastLocation() {
@@ -435,9 +431,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         };
         try {
-            String provider = manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-                    ? LocationManager.NETWORK_PROVIDER
-                    : LocationManager.GPS_PROVIDER;
+            String provider = manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                    ? LocationManager.GPS_PROVIDER
+                    : LocationManager.NETWORK_PROVIDER;
             manager.requestSingleUpdate(provider, listener, Looper.getMainLooper());
             promptHandler.postDelayed(new Runnable() {
                 @Override
@@ -447,7 +443,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     } catch (SecurityException ignored) {
                     }
                     if (weatherView != null && weatherView.getText().toString().contains("取得中")) {
-                        fetchWeatherForLocation(FALLBACK_WEATHER_LATITUDE, FALLBACK_WEATHER_LONGITUDE);
+                        Location lastLocation = getBestLastLocation();
+                        if (lastLocation != null) {
+                            fetchWeatherForLocation(lastLocation.getLatitude(), lastLocation.getLongitude());
+                        } else {
+                            fetchWeatherForLocation(FALLBACK_WEATHER_LATITUDE, FALLBACK_WEATHER_LONGITUDE);
+                        }
                     }
                 }
             }, 8000L);
@@ -464,7 +465,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 HttpURLConnection connection = null;
                 try {
                     URL url = new URL(String.format(Locale.US,
-                            "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code&timezone=auto",
+                            "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code,precipitation,rain,showers&timezone=auto",
                             latitude,
                             longitude));
                     connection = (HttpURLConnection) url.openConnection();
@@ -482,9 +483,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     JSONObject current = rootObject.getJSONObject("current");
                     int temperature = (int) Math.round(current.getDouble("temperature_2m"));
                     int code = current.getInt("weather_code");
-                    result = temperature + "℃ " + simpleWeatherName(code) + " / " + weatherAdvice(temperature, code);
+                    double precipitation = current.optDouble("precipitation", 0);
+                    double rain = current.optDouble("rain", 0);
+                    double showers = current.optDouble("showers", 0);
+                    boolean raining = precipitation > 0 || rain > 0 || showers > 0 || isRainCode(code);
+                    result = temperature + "℃ " + simpleWeatherName(code, raining) + " / " + weatherAdvice(temperature, code, raining);
                 } catch (Exception ignored) {
-                    result = "--℃\n天気";
+                    result = "--℃ 天気";
                 } finally {
                     if (connection != null) {
                         connection.disconnect();
@@ -503,7 +508,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }).start();
     }
 
-    private String simpleWeatherName(int code) {
+    private String simpleWeatherName(int code, boolean raining) {
+        if (raining) {
+            return "雨";
+        }
         if (code == 0 || code == 1) {
             return "晴れ";
         }
@@ -513,8 +521,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return "雨";
     }
 
-    private String weatherAdvice(int temperature, int code) {
-        if (code >= 51) {
+    private boolean isRainCode(int code) {
+        return (code >= 51 && code <= 67)
+                || (code >= 80 && code <= 82)
+                || (code >= 95 && code <= 99);
+    }
+
+    private String weatherAdvice(int temperature, int code, boolean raining) {
+        if (raining) {
             return "傘を忘れずに";
         }
         if (temperature >= 28) {
@@ -2396,6 +2410,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         if (Build.VERSION.SDK_INT >= 29
                 && checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.ACTIVITY_RECOGNITION);
+        }
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
         }
         if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
