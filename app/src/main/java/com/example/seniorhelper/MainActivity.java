@@ -67,6 +67,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final String KEY_MEDICINES = "medicines";
     private static final String KEY_TODOS = "todos";
     private static final String KEY_SHOPPING = "shopping";
+    private static final String KEY_FAMILY_CONTACTS = "family_contacts";
     private static final String KEY_EMERGENCY_NAME = "emergency_name";
     private static final String KEY_EMERGENCY_PHONE = "emergency_phone";
     private static final String KEY_STEP_BASE = "step_base";
@@ -199,7 +200,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         }));
         addHomeFeatureRow(featureGrid,
-                homeFeatureButton("緊急連絡", "緊急連絡を開く", COLOR_EMERGENCY, new View.OnClickListener() {
+                homeFeatureButton("家族", "家族連絡を開く", COLOR_EMERGENCY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showEmergency();
@@ -974,39 +975,68 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showEmergency() {
-        beginScreen("緊急連絡", "家族や病院へすぐ電話");
+        beginScreen("家族", "家族や病院へすぐ電話");
         root.addView(backButton());
-        String name = prefs().getString(KEY_EMERGENCY_NAME, "");
-        String phone = prefs().getString(KEY_EMERGENCY_PHONE, "");
-        LinearLayout panel = card();
-        String currentText;
-        if (phone.isEmpty()) {
-            currentText = "連絡先が未設定です";
-        } else if (name.isEmpty()) {
-            currentText = "登録番号: " + phone;
-        } else {
-            currentText = name + "\n" + phone;
+        List<FamilyContact> contacts = loadFamilyContacts();
+        int limit = isPremiumActive() ? 5 : 1;
+
+        root.addView(bigButton("家族を追加", "家族の連絡先を追加", COLOR_EMERGENCY, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (loadFamilyContacts().size() >= (isPremiumActive() ? 5 : 1)) {
+                    Toast.makeText(MainActivity.this, isPremiumActive() ? "家族は最大5人までです" : "無料版は1人までです", Toast.LENGTH_LONG).show();
+                    if (!isPremiumActive()) {
+                        showPremiumScreen();
+                    }
+                    return;
+                }
+                showFamilyContactDialog(-1);
+            }
+        }));
+
+        root.addView(bodyText(isPremiumActive() ? "プレミアム会員: 最大5人まで登録できます。" : "無料版: 1人まで登録できます。"));
+
+        if (contacts.isEmpty()) {
+            root.addView(bodyText("家族が未設定です"));
+            addAdBanner();
+            return;
         }
-        TextView current = bodyText(currentText);
-        current.setTypeface(Typeface.DEFAULT_BOLD);
-        panel.addView(current);
-        panel.addView(bigButton("電話する", "登録した番号に電話", COLOR_EMERGENCY, new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                callEmergencyNumber();
-            }
-        }));
-        panel.addView(smallButton("連絡先を設定", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showEmergencyPhoneDialog();
-            }
-        }));
-        root.addView(panel);
+
+        for (int i = 0; i < contacts.size(); i++) {
+            final int index = i;
+            FamilyContact contact = contacts.get(i);
+            LinearLayout panel = card();
+            TextView current = bodyText(contact.name.isEmpty() ? contact.phone : contact.name + "\n" + contact.phone);
+            current.setTypeface(Typeface.DEFAULT_BOLD);
+            panel.addView(current);
+            panel.addView(bigButton("電話する", "登録した番号に電話", COLOR_EMERGENCY, new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    callFamilyContact(index);
+                }
+            }));
+            panel.addView(smallButton("編集", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showFamilyContactDialog(index);
+                }
+            }));
+            panel.addView(smallButton("削除", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    deleteFamilyContact(index);
+                    showEmergency();
+                }
+            }));
+            root.addView(panel);
+        }
         addAdBanner();
     }
 
-    private void showEmergencyPhoneDialog() {
+    private void showFamilyContactDialog(final int editIndex) {
+        List<FamilyContact> contacts = loadFamilyContacts();
+        FamilyContact existing = editIndex >= 0 && editIndex < contacts.size() ? contacts.get(editIndex) : null;
+
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(dp(16), 0, dp(16), 0);
@@ -1014,17 +1044,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         final EditText nameInput = new EditText(this);
         nameInput.setTextSize(24);
         nameInput.setHint("名前 例：長男");
-        nameInput.setText(prefs().getString(KEY_EMERGENCY_NAME, ""));
+        nameInput.setText(existing == null ? "" : existing.name);
         layout.addView(nameInput, matchWrap());
 
         final EditText phoneInput = new EditText(this);
         phoneInput.setTextSize(24);
         phoneInput.setHint("電話番号 例：09012345678");
-        phoneInput.setText(prefs().getString(KEY_EMERGENCY_PHONE, ""));
+        phoneInput.setText(existing == null ? "" : existing.phone);
         layout.addView(phoneInput, matchWrap());
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("緊急連絡先")
+                .setTitle("家族の連絡先")
                 .setView(layout)
                 .setPositiveButton("保存", null)
                 .setNegativeButton("キャンセル", null)
@@ -1039,10 +1069,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     phoneInput.setError("電話番号を入力してください");
                     return;
                 }
-                prefs().edit()
-                        .putString(KEY_EMERGENCY_NAME, name)
-                        .putString(KEY_EMERGENCY_PHONE, phone)
-                        .apply();
+                saveFamilyContact(editIndex, new FamilyContact(name, phone));
                 dialog.dismiss();
                 hideKeyboard(phoneInput);
                 showEmergency();
@@ -1053,13 +1080,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         showKeyboard(nameInput);
     }
 
-    private void callEmergencyNumber() {
-        String phone = prefs().getString(KEY_EMERGENCY_PHONE, "");
-        if (phone.isEmpty()) {
-            showEmergencyPhoneDialog();
+    private void callFamilyContact(int index) {
+        List<FamilyContact> contacts = loadFamilyContacts();
+        if (index < 0 || index >= contacts.size()) {
+            showFamilyContactDialog(-1);
             return;
         }
-        startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone)));
+        startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + contacts.get(index).phone)));
     }
 
     private void showTodos() {
@@ -1525,7 +1552,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showOnboardingEmergency() {
-        beginScreen("緊急連絡先", "困った時にすぐ電話できます");
+        beginScreen("家族の連絡先", "困った時にすぐ電話できます");
 
         LinearLayout panel = card();
         panel.addView(sectionTitle("家族や病院の連絡先"));
@@ -1533,7 +1560,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         final EditText nameInput = new EditText(this);
         nameInput.setTextSize(scaledTextSize(24));
         nameInput.setHint("名前 例：長男");
-        nameInput.setText(prefs().getString(KEY_EMERGENCY_NAME, ""));
+        List<FamilyContact> existingContacts = loadFamilyContacts();
+        if (!existingContacts.isEmpty()) {
+            nameInput.setText(existingContacts.get(0).name);
+        }
         nameInput.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
         nameInput.setPadding(dp(14), dp(10), dp(14), dp(10));
         panel.addView(nameInput, matchWrap());
@@ -1541,12 +1571,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         final EditText phoneInput = new EditText(this);
         phoneInput.setTextSize(scaledTextSize(24));
         phoneInput.setHint("電話番号 例：09012345678");
-        phoneInput.setText(prefs().getString(KEY_EMERGENCY_PHONE, ""));
+        if (!existingContacts.isEmpty()) {
+            phoneInput.setText(existingContacts.get(0).phone);
+        }
         phoneInput.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
         phoneInput.setPadding(dp(14), dp(10), dp(14), dp(10));
         panel.addView(phoneInput, matchWrap());
 
-        panel.addView(bigButton("保存して次へ", "緊急連絡先を保存して次へ", COLOR_EMERGENCY, new View.OnClickListener() {
+        panel.addView(bigButton("保存して次へ", "家族の連絡先を保存して次へ", COLOR_EMERGENCY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String phone = phoneInput.getText().toString().trim();
@@ -1554,10 +1586,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     phoneInput.setError("電話番号を入力してください");
                     return;
                 }
-                prefs().edit()
-                        .putString(KEY_EMERGENCY_NAME, nameInput.getText().toString().trim())
-                        .putString(KEY_EMERGENCY_PHONE, phone)
-                        .apply();
+                saveFamilyContact(0, new FamilyContact(nameInput.getText().toString().trim(), phone));
                 hideKeyboard(phoneInput);
                 showOnboardingMedicine();
             }
@@ -2106,6 +2135,75 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         prefs().edit().putString(KEY_SHOPPING, array.toString()).apply();
     }
 
+    private List<FamilyContact> loadFamilyContacts() {
+        List<FamilyContact> contacts = new ArrayList<>();
+        String raw = prefs().getString(KEY_FAMILY_CONTACTS, "");
+        if (!raw.isEmpty()) {
+            try {
+                JSONArray array = new JSONArray(raw);
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject item = array.getJSONObject(i);
+                    String phone = item.optString("phone", "").trim();
+                    if (!phone.isEmpty()) {
+                        contacts.add(new FamilyContact(item.optString("name", ""), phone));
+                    }
+                }
+            } catch (JSONException ignored) {
+                prefs().edit().remove(KEY_FAMILY_CONTACTS).apply();
+            }
+        }
+        if (contacts.isEmpty()) {
+            String legacyPhone = prefs().getString(KEY_EMERGENCY_PHONE, "").trim();
+            if (!legacyPhone.isEmpty()) {
+                contacts.add(new FamilyContact(prefs().getString(KEY_EMERGENCY_NAME, ""), legacyPhone));
+                saveFamilyContacts(contacts);
+            }
+        }
+        int limit = isPremiumActive() ? 5 : 1;
+        if (contacts.size() > limit) {
+            return new ArrayList<>(contacts.subList(0, limit));
+        }
+        return contacts;
+    }
+
+    private void saveFamilyContact(int index, FamilyContact contact) {
+        List<FamilyContact> contacts = loadFamilyContacts();
+        int limit = isPremiumActive() ? 5 : 1;
+        if (index >= 0 && index < contacts.size()) {
+            contacts.set(index, contact);
+        } else {
+            if (contacts.size() >= limit) {
+                return;
+            }
+            contacts.add(contact);
+        }
+        saveFamilyContacts(contacts);
+    }
+
+    private void deleteFamilyContact(int index) {
+        List<FamilyContact> contacts = loadFamilyContacts();
+        if (index >= 0 && index < contacts.size()) {
+            contacts.remove(index);
+            saveFamilyContacts(contacts);
+        }
+    }
+
+    private void saveFamilyContacts(List<FamilyContact> contacts) {
+        JSONArray array = new JSONArray();
+        int limit = isPremiumActive() ? 5 : 1;
+        for (int i = 0; i < contacts.size() && i < limit; i++) {
+            FamilyContact contact = contacts.get(i);
+            JSONObject object = new JSONObject();
+            try {
+                object.put("name", contact.name);
+                object.put("phone", contact.phone);
+                array.put(object);
+            } catch (JSONException ignored) {
+            }
+        }
+        prefs().edit().putString(KEY_FAMILY_CONTACTS, array.toString()).apply();
+    }
+
     private List<TodoItem> loadTodos() {
         List<TodoItem> items = new ArrayList<>();
         String raw = prefs().getString(KEY_TODOS, "[]");
@@ -2478,17 +2576,34 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void shareToFamily(String message) {
-        String phone = prefs().getString(KEY_EMERGENCY_PHONE, "");
-        Intent intent;
-        if (phone.isEmpty()) {
-            intent = new Intent(Intent.ACTION_SEND);
+        List<FamilyContact> contacts = loadFamilyContacts();
+        if (contacts.isEmpty()) {
+            Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("text/plain");
             intent.putExtra(Intent.EXTRA_TEXT, message);
-        } else {
-            intent = new Intent(Intent.ACTION_SENDTO);
-            intent.setData(Uri.parse("smsto:" + phone));
-            intent.putExtra("sms_body", message);
+            startActivity(Intent.createChooser(intent, "家族へ共有"));
+            return;
         }
+        if (isPremiumActive() && contacts.size() > 1) {
+            String[] names = new String[contacts.size()];
+            for (int i = 0; i < contacts.size(); i++) {
+                FamilyContact contact = contacts.get(i);
+                names[i] = contact.name.isEmpty() ? contact.phone : contact.name + "  " + contact.phone;
+            }
+            new AlertDialog.Builder(this)
+                    .setTitle("送る家族を選ぶ")
+                    .setItems(names, (dialog, which) -> sendSummaryToFamilyContact(contacts.get(which), message))
+                    .setNegativeButton("キャンセル", null)
+                    .show();
+            return;
+        }
+        sendSummaryToFamilyContact(contacts.get(0), message);
+    }
+
+    private void sendSummaryToFamilyContact(FamilyContact contact, String message) {
+        Intent intent = new Intent(Intent.ACTION_SENDTO);
+        intent.setData(Uri.parse("smsto:" + contact.phone));
+        intent.putExtra("sms_body", message);
         startActivity(Intent.createChooser(intent, "家族へ共有"));
     }
 
@@ -2502,6 +2617,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             object.put("medicines", new JSONArray(prefs().getString(KEY_MEDICINES, "[]")));
             object.put("todos", new JSONArray(prefs().getString(KEY_TODOS, "[]")));
             object.put("shopping", new JSONArray(prefs().getString(KEY_SHOPPING, "[]")));
+            object.put("familyContacts", new JSONArray(prefs().getString(KEY_FAMILY_CONTACTS, "[]")));
             object.put("emergencyName", prefs().getString(KEY_EMERGENCY_NAME, ""));
             object.put("emergencyPhone", prefs().getString(KEY_EMERGENCY_PHONE, ""));
         } catch (JSONException ignored) {
@@ -2670,6 +2786,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             this.amount = amount;
             this.number = number;
             this.bought = bought;
+        }
+    }
+
+    private static class FamilyContact {
+        final String name;
+        final String phone;
+
+        FamilyContact(String name, String phone) {
+            this.name = name;
+            this.phone = phone;
         }
     }
 
