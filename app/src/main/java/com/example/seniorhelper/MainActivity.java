@@ -108,6 +108,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private boolean premiumPromptScheduled = false;
     private boolean premiumPromptShown = false;
     private int stepsToday = 0;
+    private int selectedStepDayOffset = 0;
     private int draftEventHour = -1;
     private int draftEventMinute = -1;
     private int draftMedicineHour = -1;
@@ -543,11 +544,35 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private void addStepCounterPanel() {
         LinearLayout panel = card();
-        TextView title = bodyText("今日の歩数");
+        TextView title = bodyText(selectedStepDayOffset == 0 ? "今日の歩数" : "昨日の歩数");
         title.setTypeface(Typeface.DEFAULT_BOLD);
         panel.addView(title);
 
-        stepCountView = bodyText(stepsToday + " 歩");
+        LinearLayout switchRow = new LinearLayout(this);
+        switchRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button today = smallButton("今日", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                selectedStepDayOffset = 0;
+                showStepCounter();
+            }
+        });
+        Button yesterday = smallButton("昨日", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                selectedStepDayOffset = -1;
+                showStepCounter();
+            }
+        });
+        today.setBackground(japaneseBox(selectedStepDayOffset == 0 ? COLOR_ACCENT : COLOR_SECONDARY, 6, 1, COLOR_LINE));
+        yesterday.setBackground(japaneseBox(selectedStepDayOffset == -1 ? COLOR_ACCENT : COLOR_SECONDARY, 6, 1, COLOR_LINE));
+        switchRow.addView(today, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams yesterdayParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        yesterdayParams.setMargins(dp(8), 0, 0, 0);
+        switchRow.addView(yesterday, yesterdayParams);
+        panel.addView(switchRow, matchWrapWithBottom(8));
+
+        stepCountView = bodyText(displayedStepCount() + " 歩");
         stepCountView.setTextSize(34);
         stepCountView.setTypeface(Typeface.DEFAULT_BOLD);
         panel.addView(stepCountView);
@@ -583,7 +608,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private void updateStepCounterText() {
         if (stepCountView != null) {
-            stepCountView.setText(stepsToday + " 歩");
+            stepCountView.setText(displayedStepCount() + " 歩");
         }
         if (stepSensorStatusView != null) {
             stepSensorStatusView.setText(stepCounterMessage());
@@ -636,6 +661,19 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private String todayKey() {
         return new SimpleDateFormat("yyyy-MM-dd", Locale.JAPAN).format(new Date());
+    }
+
+    private String dateKeyWithOffset(int dayOffset) {
+        Calendar calendar = Calendar.getInstance(Locale.JAPAN);
+        calendar.add(Calendar.DAY_OF_YEAR, dayOffset);
+        return new SimpleDateFormat("yyyy-MM-dd", Locale.JAPAN).format(calendar.getTime());
+    }
+
+    private int displayedStepCount() {
+        if (selectedStepDayOffset == 0) {
+            return stepsToday;
+        }
+        return loadStepHistory().optInt(dateKeyWithOffset(selectedStepDayOffset), 0);
     }
 
     private boolean isJapaneseHoliday(Calendar date) {
