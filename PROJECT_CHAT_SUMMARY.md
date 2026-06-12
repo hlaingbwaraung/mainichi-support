@@ -20,9 +20,11 @@ Android app for older users with large buttons, simple Japanese UI, and daily su
   - Bought items get a strikethrough instead of being deleted.
   - `全て削除` button is placed at top right.
 - Premium screen:
-  - Google Play monthly subscription.
-  - Product ID: `premium_monthly`.
-  - Base plan ID: `monthly`.
+  - Google Play monthly subscription at 500 yen.
+  - Subscription product ID: `premium_monthly`.
+  - Subscription base plan ID: `monthly`.
+  - One-time lifetime purchase at 3,000 yen.
+  - One-time product ID: `premium_lifetime`.
   - Premium hides ad placeholders.
   - Purchase restore and Google Play subscription management.
   - Non-premium shows a subscribe recommendation after 5 seconds.

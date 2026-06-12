@@ -23,9 +23,16 @@ import java.util.List;
 public final class PlayBillingManager implements PurchasesUpdatedListener {
     public static final String SUBSCRIPTION_PRODUCT_ID = "premium_monthly";
     public static final String MONTHLY_BASE_PLAN_ID = "monthly";
+    public static final String LIFETIME_PRODUCT_ID = "premium_lifetime";
+
+    public enum PremiumPlan {
+        NONE,
+        MONTHLY,
+        LIFETIME
+    }
 
     public interface Listener {
-        void onPremiumStatusChanged(boolean active, boolean firstCheck);
+        void onPremiumStatusChanged(PremiumPlan plan, boolean firstCheck);
 
         void onBillingProductChanged(boolean available);
 
@@ -35,11 +42,15 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
     private final Context appContext;
     private final Listener listener;
     private BillingClient billingClient;
-    private ProductDetails premiumProduct;
-    private String offerToken;
-    private String formattedPrice = "¥300 / 月";
+    private ProductDetails monthlyProduct;
+    private ProductDetails lifetimeProduct;
+    private String monthlyOfferToken;
+    private String lifetimeOfferToken;
+    private String monthlyPrice = "¥500 / 月";
+    private String lifetimePrice = "¥3,000";
     private boolean firstPurchaseQueryCompleted = false;
     private boolean productQueryFinished = false;
+    private int productQueryGeneration = 0;
 
     public PlayBillingManager(Context context, Listener listener) {
         this.appContext = context.getApplicationContext();
@@ -78,42 +89,44 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
         });
     }
 
-    public boolean isProductAvailable() {
-        return premiumProduct != null && offerToken != null;
+    public boolean isMonthlyAvailable() {
+        return monthlyProduct != null && monthlyOfferToken != null;
     }
 
-    public String getFormattedPrice() {
-        return formattedPrice;
+    public boolean isLifetimeAvailable() {
+        return lifetimeProduct != null;
+    }
+
+    public boolean isAnyProductAvailable() {
+        return isMonthlyAvailable() || isLifetimeAvailable();
+    }
+
+    public String getMonthlyPrice() {
+        return monthlyPrice;
+    }
+
+    public String getLifetimePrice() {
+        return lifetimePrice;
     }
 
     public boolean isProductQueryFinished() {
         return productQueryFinished;
     }
 
-    public void launchPurchase(Activity activity) {
-        if (!isReady()) {
-            listener.onBillingMessage("Google Playに接続しています。少し待ってからもう一度お試しください。");
-            start();
+    public void launchMonthlyPurchase(Activity activity) {
+        if (!isMonthlyAvailable()) {
+            handleUnavailableProduct("月額プラン");
             return;
         }
-        if (!isProductAvailable()) {
-            queryProductDetails();
-            listener.onBillingMessage("定期購入の商品を確認できません。Google Playからインストールしたアプリでお試しください。");
-            return;
-        }
+        launchPurchase(activity, monthlyProduct, monthlyOfferToken);
+    }
 
-        BillingFlowParams.ProductDetailsParams productParams =
-                BillingFlowParams.ProductDetailsParams.newBuilder()
-                        .setProductDetails(premiumProduct)
-                        .setOfferToken(offerToken)
-                        .build();
-        BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
-                .setProductDetailsParamsList(Collections.singletonList(productParams))
-                .build();
-        BillingResult result = billingClient.launchBillingFlow(activity, billingFlowParams);
-        if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-            listener.onBillingMessage(toUserMessage(result));
+    public void launchLifetimePurchase(Activity activity) {
+        if (!isLifetimeAvailable()) {
+            handleUnavailableProduct("買い切りプラン");
+            return;
         }
+        launchPurchase(activity, lifetimeProduct, lifetimeOfferToken);
     }
 
     public void refreshPurchases(boolean userInitiated) {
@@ -125,35 +138,9 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
             return;
         }
 
-        QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
-                .setProductType(BillingClient.ProductType.SUBS)
-                .build();
-        billingClient.queryPurchasesAsync(params, (billingResult, purchases) -> {
-            if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                if (userInitiated) {
-                    listener.onBillingMessage(toUserMessage(billingResult));
-                }
-                return;
-            }
-
-            boolean active = false;
-            for (Purchase purchase : purchases) {
-                if (isPremiumPurchase(purchase)
-                        && purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-                    active = true;
-                    acknowledgeIfNeeded(purchase);
-                }
-            }
-
-            boolean firstCheck = !firstPurchaseQueryCompleted;
-            firstPurchaseQueryCompleted = true;
-            listener.onPremiumStatusChanged(active, firstCheck);
-            if (userInitiated) {
-                listener.onBillingMessage(active
-                        ? "購入情報を復元しました。"
-                        : "有効なプレミアム会員登録は見つかりませんでした。");
-            }
-        });
+        PurchaseRefresh refresh = new PurchaseRefresh(userInitiated);
+        queryPurchases(BillingClient.ProductType.SUBS, refresh);
+        queryPurchases(BillingClient.ProductType.INAPP, refresh);
     }
 
     public void openManageSubscription(Activity activity) {
@@ -177,21 +164,26 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
     public void onPurchasesUpdated(BillingResult billingResult, List<Purchase> purchases) {
         int responseCode = billingResult.getResponseCode();
         if (responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-            boolean active = false;
+            PremiumPlan purchasedPlan = PremiumPlan.NONE;
             boolean pending = false;
             for (Purchase purchase : purchases) {
-                if (!isPremiumPurchase(purchase)) {
+                PremiumPlan plan = planForPurchase(purchase);
+                if (plan == PremiumPlan.NONE) {
                     continue;
                 }
                 if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-                    active = true;
+                    if (plan == PremiumPlan.LIFETIME) {
+                        purchasedPlan = PremiumPlan.LIFETIME;
+                    } else if (purchasedPlan == PremiumPlan.NONE) {
+                        purchasedPlan = PremiumPlan.MONTHLY;
+                    }
                     acknowledgeIfNeeded(purchase);
                 } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
                     pending = true;
                 }
             }
-            if (active) {
-                listener.onPremiumStatusChanged(true, false);
+            if (purchasedPlan != PremiumPlan.NONE) {
+                listener.onPremiumStatusChanged(purchasedPlan, false);
                 listener.onBillingMessage("プレミアム会員の登録が完了しました。");
             } else if (pending) {
                 listener.onBillingMessage("お支払いは確認中です。完了後にプレミアムが有効になります。");
@@ -203,54 +195,146 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
         }
     }
 
+    private void launchPurchase(Activity activity, ProductDetails product, String offerToken) {
+        if (!isReady()) {
+            listener.onBillingMessage("Google Playに接続しています。少し待ってからもう一度お試しください。");
+            start();
+            return;
+        }
+
+        BillingFlowParams.ProductDetailsParams.Builder productBuilder =
+                BillingFlowParams.ProductDetailsParams.newBuilder()
+                        .setProductDetails(product);
+        if (offerToken != null && !offerToken.isEmpty()) {
+            productBuilder.setOfferToken(offerToken);
+        }
+        BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
+                .setProductDetailsParamsList(Collections.singletonList(productBuilder.build()))
+                .build();
+        BillingResult result = billingClient.launchBillingFlow(activity, billingFlowParams);
+        if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+            listener.onBillingMessage(toUserMessage(result));
+        }
+    }
+
+    private void handleUnavailableProduct(String planName) {
+        if (!isReady()) {
+            listener.onBillingMessage("Google Playに接続しています。少し待ってからもう一度お試しください。");
+            start();
+            return;
+        }
+        queryProductDetails();
+        listener.onBillingMessage(planName + "を確認できません。Google Playからインストールしたアプリでお試しください。");
+    }
+
+    private void queryPurchases(String productType, PurchaseRefresh refresh) {
+        QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
+                .setProductType(productType)
+                .build();
+        billingClient.queryPurchasesAsync(params, (billingResult, purchases) -> {
+            boolean success = billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK;
+            if (success) {
+                for (Purchase purchase : purchases) {
+                    PremiumPlan plan = planForPurchase(purchase);
+                    if (plan == PremiumPlan.NONE
+                            || purchase.getPurchaseState() != Purchase.PurchaseState.PURCHASED) {
+                        continue;
+                    }
+                    refresh.markActive(plan);
+                    acknowledgeIfNeeded(purchase);
+                }
+            }
+            refresh.completeQuery(success, billingResult);
+        });
+    }
+
     private void queryProductDetails() {
         if (!isReady()) {
             return;
         }
 
-        QueryProductDetailsParams.Product product = QueryProductDetailsParams.Product.newBuilder()
-                .setProductId(SUBSCRIPTION_PRODUCT_ID)
-                .setProductType(BillingClient.ProductType.SUBS)
+        monthlyProduct = null;
+        lifetimeProduct = null;
+        monthlyOfferToken = null;
+        lifetimeOfferToken = null;
+        productQueryFinished = false;
+        ProductRefresh refresh = new ProductRefresh(++productQueryGeneration);
+        queryProductDetailsForType(
+                SUBSCRIPTION_PRODUCT_ID,
+                BillingClient.ProductType.SUBS,
+                refresh
+        );
+        queryProductDetailsForType(
+                LIFETIME_PRODUCT_ID,
+                BillingClient.ProductType.INAPP,
+                refresh
+        );
+    }
+
+    private void queryProductDetailsForType(
+            String productId,
+            String productType,
+            ProductRefresh refresh
+    ) {
+        QueryProductDetailsParams.Product requestedProduct = QueryProductDetailsParams.Product.newBuilder()
+                .setProductId(productId)
+                .setProductType(productType)
                 .build();
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
-                .setProductList(Collections.singletonList(product))
+                .setProductList(Collections.singletonList(requestedProduct))
                 .build();
         billingClient.queryProductDetailsAsync(params, (billingResult, queryResult) -> {
-            premiumProduct = null;
-            offerToken = null;
-            productQueryFinished = true;
+            if (refresh.generation != productQueryGeneration) {
+                return;
+            }
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                listener.onBillingProductChanged(false);
+                refresh.completeQuery();
                 return;
             }
 
-            List<ProductDetails> products = queryResult.getProductDetailsList();
-            if (products.isEmpty()) {
-                listener.onBillingProductChanged(false);
-                return;
-            }
-
-            premiumProduct = products.get(0);
-            ProductDetails.SubscriptionOfferDetails selectedOffer = selectMonthlyOffer(premiumProduct);
-            if (selectedOffer == null) {
-                premiumProduct = null;
-                listener.onBillingProductChanged(false);
-                return;
-            }
-
-            offerToken = selectedOffer.getOfferToken();
-            List<ProductDetails.PricingPhase> pricingPhases =
-                    selectedOffer.getPricingPhases().getPricingPhaseList();
-            if (!pricingPhases.isEmpty()) {
-                ProductDetails.PricingPhase recurringPhase =
-                        pricingPhases.get(pricingPhases.size() - 1);
-                formattedPrice = recurringPhase.getFormattedPrice();
-                if ("P1M".equals(recurringPhase.getBillingPeriod())) {
-                    formattedPrice += " / 月";
+            for (ProductDetails productDetails : queryResult.getProductDetailsList()) {
+                if (SUBSCRIPTION_PRODUCT_ID.equals(productDetails.getProductId())) {
+                    configureMonthlyProduct(productDetails);
+                } else if (LIFETIME_PRODUCT_ID.equals(productDetails.getProductId())) {
+                    configureLifetimeProduct(productDetails);
                 }
             }
-            listener.onBillingProductChanged(true);
+            refresh.completeQuery();
         });
+    }
+
+    private void configureMonthlyProduct(ProductDetails product) {
+        ProductDetails.SubscriptionOfferDetails selectedOffer = selectMonthlyOffer(product);
+        if (selectedOffer == null) {
+            return;
+        }
+        monthlyProduct = product;
+        monthlyOfferToken = selectedOffer.getOfferToken();
+        List<ProductDetails.PricingPhase> pricingPhases =
+                selectedOffer.getPricingPhases().getPricingPhaseList();
+        if (!pricingPhases.isEmpty()) {
+            ProductDetails.PricingPhase recurringPhase =
+                    pricingPhases.get(pricingPhases.size() - 1);
+            monthlyPrice = recurringPhase.getFormattedPrice();
+            if ("P1M".equals(recurringPhase.getBillingPeriod())) {
+                monthlyPrice += " / 月";
+            }
+        }
+    }
+
+    private void configureLifetimeProduct(ProductDetails product) {
+        List<ProductDetails.OneTimePurchaseOfferDetails> offers =
+                product.getOneTimePurchaseOfferDetailsList();
+        ProductDetails.OneTimePurchaseOfferDetails selectedOffer =
+                offers == null || offers.isEmpty()
+                        ? product.getOneTimePurchaseOfferDetails()
+                        : offers.get(0);
+        if (selectedOffer == null) {
+            return;
+        }
+        lifetimeProduct = product;
+        lifetimeOfferToken = selectedOffer.getOfferToken();
+        lifetimePrice = selectedOffer.getFormattedPrice();
     }
 
     private ProductDetails.SubscriptionOfferDetails selectMonthlyOffer(ProductDetails product) {
@@ -267,8 +351,14 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
         return offers.get(0);
     }
 
-    private boolean isPremiumPurchase(Purchase purchase) {
-        return purchase.getProducts().contains(SUBSCRIPTION_PRODUCT_ID);
+    private PremiumPlan planForPurchase(Purchase purchase) {
+        if (purchase.getProducts().contains(LIFETIME_PRODUCT_ID)) {
+            return PremiumPlan.LIFETIME;
+        }
+        if (purchase.getProducts().contains(SUBSCRIPTION_PRODUCT_ID)) {
+            return PremiumPlan.MONTHLY;
+        }
+        return PremiumPlan.NONE;
     }
 
     private void acknowledgeIfNeeded(Purchase purchase) {
@@ -300,6 +390,69 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
                 return "通信できませんでした。インターネット接続を確認してください。";
             default:
                 return "Google Playのお支払いを開始できませんでした。";
+        }
+    }
+
+    private final class PurchaseRefresh {
+        private final boolean userInitiated;
+        private int completedQueries = 0;
+        private int failedQueries = 0;
+        private PremiumPlan activePlan = PremiumPlan.NONE;
+        private BillingResult lastFailure;
+
+        private PurchaseRefresh(boolean userInitiated) {
+            this.userInitiated = userInitiated;
+        }
+
+        private void markActive(PremiumPlan plan) {
+            if (plan == PremiumPlan.LIFETIME || activePlan == PremiumPlan.NONE) {
+                activePlan = plan;
+            }
+        }
+
+        private void completeQuery(boolean success, BillingResult billingResult) {
+            completedQueries++;
+            if (!success) {
+                failedQueries++;
+                lastFailure = billingResult;
+            }
+            if (completedQueries < 2) {
+                return;
+            }
+
+            if (activePlan == PremiumPlan.NONE && failedQueries > 0) {
+                if (userInitiated && lastFailure != null) {
+                    listener.onBillingMessage(toUserMessage(lastFailure));
+                }
+                return;
+            }
+
+            boolean firstCheck = !firstPurchaseQueryCompleted;
+            firstPurchaseQueryCompleted = true;
+            listener.onPremiumStatusChanged(activePlan, firstCheck);
+            if (userInitiated) {
+                listener.onBillingMessage(activePlan == PremiumPlan.NONE
+                        ? "有効なプレミアム購入は見つかりませんでした。"
+                        : "購入情報を復元しました。");
+            }
+        }
+    }
+
+    private final class ProductRefresh {
+        private final int generation;
+        private int completedQueries = 0;
+
+        private ProductRefresh(int generation) {
+            this.generation = generation;
+        }
+
+        private void completeQuery() {
+            completedQueries++;
+            if (completedQueries < 2 || generation != productQueryGeneration) {
+                return;
+            }
+            productQueryFinished = true;
+            listener.onBillingProductChanged(isAnyProductAvailable());
         }
     }
 }

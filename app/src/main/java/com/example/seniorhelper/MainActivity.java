@@ -74,6 +74,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final String KEY_STEP_DATE = "step_date";
     private static final String KEY_STEP_HISTORY = "step_history";
     private static final String KEY_PREMIUM_ACTIVE = "premium_active";
+    private static final String KEY_PREMIUM_PLAN = "premium_plan";
     private static final String KEY_REAL_BILLING_MIGRATED = "real_billing_migrated";
     private static final String KEY_TEXT_SCALE = "text_scale";
     private static final String KEY_ONBOARDING_DONE = "onboarding_done";
@@ -132,9 +133,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         migrateFromTestPremium();
         billingManager = new PlayBillingManager(this, new PlayBillingManager.Listener() {
             @Override
-            public void onPremiumStatusChanged(boolean active, boolean firstCheck) {
+            public void onPremiumStatusChanged(PlayBillingManager.PremiumPlan plan, boolean firstCheck) {
+                boolean active = plan != PlayBillingManager.PremiumPlan.NONE;
                 boolean changed = isPremiumActive() != active;
-                prefs().edit().putBoolean(KEY_PREMIUM_ACTIVE, active).apply();
+                prefs().edit()
+                        .putBoolean(KEY_PREMIUM_ACTIVE, active)
+                        .putString(KEY_PREMIUM_PLAN, plan.name())
+                        .apply();
                 billingStateChecked = true;
                 if ("プレミアム".equals(currentScreenTitle)) {
                     showPremiumScreen();
@@ -1523,46 +1528,80 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showPremiumScreen() {
-        beginScreen("プレミアム", "広告なしでもっと便利に");
+        beginScreen("プレミアム", "2つのプランから選べます");
         root.addView(backButton());
 
-        LinearLayout panel = card();
+        LinearLayout benefitsPanel = card();
         TextView title = bodyText("プレミアム会員");
         title.setTextSize(30);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        panel.addView(title);
-        String price = billingManager == null ? "¥300 / 月" : billingManager.getFormattedPrice();
-        panel.addView(bodyText(price));
-        panel.addView(bodyText("Google広告を表示しません。"));
-        panel.addView(bodyText("家族を最大5人まで登録できます。"));
-        panel.addView(bodyText("毎月自動更新。Google Playでいつでも解約できます。"));
-        root.addView(panel);
-
-        Button subscribe = bigButton(isPremiumActive() ? "登録済みです" : price + "で登録", "Google Playでプレミアム会員に登録", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (billingManager != null) {
-                    billingManager.launchPurchase(MainActivity.this);
-                }
-            }
-        });
-        subscribe.setBackground(japaneseBox(isPremiumActive() ? COLOR_SECONDARY : COLOR_ACCENT, 6, 1, COLOR_ACCENT));
-        subscribe.setEnabled(!isPremiumActive());
-        root.addView(subscribe);
+        benefitsPanel.addView(title);
+        benefitsPanel.addView(bodyText("Google広告を表示しません。"));
+        benefitsPanel.addView(bodyText("家族を最大5人まで登録できます。"));
+        root.addView(benefitsPanel);
 
         if (isPremiumActive()) {
-            root.addView(bodyText("現在、広告は非表示です。"));
-            Button cancel = bigButton("定期購入を管理・解約", "Google Playでプレミアム会員を管理", COLOR_EMERGENCY, new View.OnClickListener() {
+            LinearLayout statusPanel = card();
+            PlayBillingManager.PremiumPlan plan = premiumPlan();
+            TextView statusTitle = bodyText(plan == PlayBillingManager.PremiumPlan.LIFETIME
+                    ? "買い切りプランを購入済み"
+                    : "月額プランを利用中");
+            statusTitle.setTextSize(26);
+            statusTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            statusPanel.addView(statusTitle);
+            statusPanel.addView(bodyText("現在、広告は非表示です。"));
+            if (plan == PlayBillingManager.PremiumPlan.LIFETIME) {
+                statusPanel.addView(bodyText("追加のお支払いはありません。ずっと利用できます。"));
+            } else {
+                statusPanel.addView(bodyText("毎月自動更新。Google Playでいつでも解約できます。"));
+                statusPanel.addView(bigButton("定期購入を管理・解約", "Google Playで月額プランを管理", COLOR_EMERGENCY, new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        if (billingManager != null) {
+                            billingManager.openManageSubscription(MainActivity.this);
+                        }
+                    }
+                }));
+            }
+            root.addView(statusPanel);
+        } else {
+            String monthlyPrice = billingManager == null ? "¥500 / 月" : billingManager.getMonthlyPrice();
+            LinearLayout monthlyPanel = card();
+            TextView monthlyTitle = bodyText("月額プラン");
+            monthlyTitle.setTextSize(26);
+            monthlyTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            monthlyPanel.addView(monthlyTitle);
+            monthlyPanel.addView(bodyText(monthlyPrice));
+            monthlyPanel.addView(bodyText("毎月自動更新。いつでも解約できます。"));
+            monthlyPanel.addView(bigButton(monthlyPrice + "で登録", "Google Playで月額プランに登録", COLOR_ACCENT, new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     if (billingManager != null) {
-                        billingManager.openManageSubscription(MainActivity.this);
+                        billingManager.launchMonthlyPurchase(MainActivity.this);
                     }
                 }
-            });
-            root.addView(cancel);
-        } else {
-            if (billingManager != null && !billingManager.isProductAvailable()) {
+            }));
+            root.addView(monthlyPanel);
+
+            String lifetimePrice = billingManager == null ? "¥3,000" : billingManager.getLifetimePrice();
+            LinearLayout lifetimePanel = card();
+            TextView lifetimeTitle = bodyText("買い切りプラン");
+            lifetimeTitle.setTextSize(26);
+            lifetimeTitle.setTypeface(Typeface.DEFAULT_BOLD);
+            lifetimePanel.addView(lifetimeTitle);
+            lifetimePanel.addView(bodyText(lifetimePrice));
+            lifetimePanel.addView(bodyText("一度のお支払いで、ずっと利用できます。"));
+            lifetimePanel.addView(bigButton(lifetimePrice + "で購入", "Google Playで買い切りプランを購入", COLOR_PRIMARY, new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (billingManager != null) {
+                        billingManager.launchLifetimePurchase(MainActivity.this);
+                    }
+                }
+            }));
+            root.addView(lifetimePanel);
+
+            if (billingManager != null && !billingManager.isAnyProductAvailable()) {
                 root.addView(bodyText(billingManager.isProductQueryFinished()
                         ? "Google Playで商品を取得できませんでした。Playストア版でお試しください。"
                         : "Google Playの商品情報を確認しています。"));
@@ -2765,6 +2804,15 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return prefs().getBoolean(KEY_PREMIUM_ACTIVE, false);
     }
 
+    private PlayBillingManager.PremiumPlan premiumPlan() {
+        String value = prefs().getString(KEY_PREMIUM_PLAN, PlayBillingManager.PremiumPlan.NONE.name());
+        try {
+            return PlayBillingManager.PremiumPlan.valueOf(value);
+        } catch (IllegalArgumentException exception) {
+            return PlayBillingManager.PremiumPlan.NONE;
+        }
+    }
+
     private boolean isOnboardingDone() {
         return prefs().getBoolean(KEY_ONBOARDING_DONE, false);
     }
@@ -2773,6 +2821,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         if (!prefs().getBoolean(KEY_REAL_BILLING_MIGRATED, false)) {
             prefs().edit()
                     .putBoolean(KEY_PREMIUM_ACTIVE, false)
+                    .putString(KEY_PREMIUM_PLAN, PlayBillingManager.PremiumPlan.NONE.name())
                     .putBoolean(KEY_REAL_BILLING_MIGRATED, true)
                     .apply();
         }
@@ -2799,7 +2848,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("広告なしで使えます")
-                .setMessage("月額300円のプレミアム会員になると、Google広告を表示しません。")
+                .setMessage("月額500円、または3,000円の買い切りで広告を表示しません。")
                 .setPositiveButton("詳しく見る", (d, which) -> showPremiumScreen())
                 .setNegativeButton("あとで", null)
                 .create();
