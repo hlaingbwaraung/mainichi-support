@@ -28,6 +28,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.speech.tts.TextToSpeech;
+import android.text.TextUtils;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -878,17 +879,25 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
         for (int i = 0; i < notes.size(); i++) {
             final int index = i;
+            String note = notes.get(i);
             LinearLayout card = card();
-            TextView noteText = bodyText(notes.get(i));
+            TextView noteText = bodyText(note);
             card.addView(noteText);
-            Button delete = smallButton("削除", new View.OnClickListener() {
+            card.addView(compactDeleteOnlyRow(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    deleteNote(index);
-                    showNotes();
+                    showDeleteConfirmation(
+                            "メモを削除",
+                            "削除するメモ",
+                            note,
+                            "メモを削除しました",
+                            () -> {
+                                deleteNote(index);
+                                showNotes();
+                            }
+                    );
                 }
-            });
-            card.addView(delete);
+            }));
             root.addView(card);
         }
         addAdBanner();
@@ -955,22 +964,36 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             item.addView(bodyText(formatEventTime(medicine.timeMillis)));
             if (medicine.confirmed) {
                 item.addView(bodyText("確認済みです"));
+                item.addView(compactDeleteOnlyRow(v -> showDeleteConfirmation(
+                        "薬を削除",
+                        "削除する薬",
+                        medicine.title,
+                        "薬を削除しました",
+                        () -> {
+                            deleteTimedItem(KEY_MEDICINES, index);
+                            showMedicines();
+                        }
+                )));
             } else {
-                item.addView(smallButton("確認しました", new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        confirmTimedItem(KEY_MEDICINES, index, true);
-                        showMedicines();
-                    }
-                }));
+                item.addView(primaryDeleteActionRow(
+                        "確認しました",
+                        COLOR_MEDICINE,
+                        v -> {
+                            confirmTimedItem(KEY_MEDICINES, index, true);
+                            showMedicines();
+                        },
+                        v -> showDeleteConfirmation(
+                                "薬を削除",
+                                "削除する薬",
+                                medicine.title,
+                                "薬を削除しました",
+                                () -> {
+                                    deleteTimedItem(KEY_MEDICINES, index);
+                                    showMedicines();
+                                }
+                        )
+                ));
             }
-            item.addView(smallButton("削除", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    deleteTimedItem(KEY_MEDICINES, index);
-                    showMedicines();
-                }
-            }));
             root.addView(item);
         }
         addAdBanner();
@@ -1116,19 +1139,21 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     callFamilyContact(index);
                 }
             }));
-            panel.addView(smallButton("編集", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showFamilyContactDialog(index);
-                }
-            }));
-            panel.addView(smallButton("削除", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    deleteFamilyContact(index);
-                    showEmergency();
-                }
-            }));
+            panel.addView(primaryDeleteActionRow(
+                    "編集",
+                    COLOR_SECONDARY,
+                    v -> showFamilyContactDialog(index),
+                    v -> showDeleteConfirmation(
+                            "家族を削除",
+                            "削除する連絡先",
+                            contact.name.isEmpty() ? contact.phone : contact.name,
+                            "家族の連絡先を削除しました",
+                            () -> {
+                                deleteFamilyContact(index);
+                                showEmergency();
+                            }
+                    )
+            ));
             root.addView(panel);
         }
         addAdBanner();
@@ -1219,13 +1244,24 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 item.addView(bodyText("完了しました。明日、自動で消えます。"));
             }
             item.addView(text, 0);
-            item.addView(smallButton(todo.done ? "戻す" : "完了", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    toggleTodoDone(index);
-                    showTodos();
-                }
-            }));
+            item.addView(primaryDeleteActionRow(
+                    todo.done ? "戻す" : "完了",
+                    COLOR_TODO,
+                    v -> {
+                        toggleTodoDone(index);
+                        showTodos();
+                    },
+                    v -> showDeleteConfirmation(
+                            "やることを削除",
+                            "削除する内容",
+                            todo.text,
+                            "やることを削除しました",
+                            () -> {
+                                deleteTodo(index);
+                                showTodos();
+                            }
+                    )
+            ));
             root.addView(item);
         }
         addAdBanner();
@@ -1240,8 +1276,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         Button clear = smallButton("全て削除", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                clearShoppingItems();
-                showShopping();
+                showDeleteConfirmation(
+                        "買い物リストを削除",
+                        "削除する内容",
+                        "登録されている買う物をすべて",
+                        "買い物リストを全て削除しました",
+                        () -> {
+                            clearShoppingItems();
+                            showShopping();
+                        }
+                );
             }
         });
         clear.setBackground(japaneseBox(COLOR_EMERGENCY, 6, 1, COLOR_EMERGENCY));
@@ -1274,40 +1318,23 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
             item.addView(text);
 
-            LinearLayout actionRow = new LinearLayout(this);
-            actionRow.setOrientation(LinearLayout.HORIZONTAL);
-            actionRow.setGravity(Gravity.CENTER_VERTICAL);
-
-            Button boughtButton = smallButton(value.bought ? "戻す" : "買った", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    toggleShoppingBought(index);
-                    showShopping();
-                }
-            });
-            boughtButton.setBackground(japaneseBox(COLOR_SHOPPING, 6, 1, COLOR_SHOPPING));
-            LinearLayout.LayoutParams boughtParams = new LinearLayout.LayoutParams(0, dp(58), 3f);
-            boughtParams.setMargins(0, 0, dp(6), 0);
-            actionRow.addView(boughtButton, boughtParams);
-
-            Button deleteButton = smallButton("削除", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    deleteShoppingItem(index);
-                    showShopping();
-                }
-            });
-            deleteButton.setTextSize(scaledTextSize(16));
-            deleteButton.setMinHeight(0);
-            deleteButton.setPadding(dp(6), dp(4), dp(6), dp(4));
-            deleteButton.setBackground(japaneseBox(COLOR_EMERGENCY, 6, 1, COLOR_EMERGENCY));
-            LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-            deleteParams.setMargins(dp(6), dp(5), 0, dp(5));
-            actionRow.addView(deleteButton, deleteParams);
-
-            item.addView(actionRow, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+            item.addView(primaryDeleteActionRow(
+                    value.bought ? "戻す" : "買った",
+                    COLOR_SHOPPING,
+                    v -> {
+                        toggleShoppingBought(index);
+                        showShopping();
+                    },
+                    v -> showDeleteConfirmation(
+                            "買う物を削除",
+                            "削除する物",
+                            value.name,
+                            "買う物を削除しました",
+                            () -> {
+                                deleteShoppingItem(index);
+                                showShopping();
+                            }
+                    )
             ));
             root.addView(item);
         }
@@ -1443,28 +1470,44 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             card.addView(bodyText(formatEventTime(event.timeMillis)));
             if (event.confirmed) {
                 card.addView(bodyText("確認済みです"));
+                card.addView(compactDeleteOnlyRow(v ->
+                        showDeleteEventConfirmation(index, event.title)));
             } else {
-                card.addView(smallButton("確認しました", new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        confirmEvent(index);
-                        showCalendar();
-                    }
-                }));
+                card.addView(primaryDeleteActionRow(
+                        "確認しました",
+                        COLOR_SCHEDULE,
+                        v -> {
+                            confirmEvent(index);
+                            showCalendar();
+                        },
+                        v -> showDeleteEventConfirmation(index, event.title)
+                ));
             }
-            Button delete = smallButton("削除", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showDeleteEventConfirmation(index, event.title);
-                }
-            });
-            card.addView(delete);
             root.addView(card);
         }
         addAdBanner();
     }
 
     private void showDeleteEventConfirmation(final int index, String eventTitle) {
+        showDeleteConfirmation(
+                "予定を削除",
+                "削除する予定",
+                eventTitle,
+                "予定を削除しました",
+                () -> {
+                    deleteEvent(index);
+                    showCalendar();
+                }
+        );
+    }
+
+    private void showDeleteConfirmation(
+            String dialogTitle,
+            String itemLabel,
+            String itemName,
+            String successMessage,
+            Runnable deleteAction
+    ) {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(24), dp(22), dp(24), dp(24));
@@ -1481,14 +1524,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         titleRow.addView(accent, accentParams);
 
         TextView title = new TextView(this);
-        title.setText("予定を削除");
+        title.setText(dialogTitle);
         title.setTextSize(scaledTextSize(28));
         title.setTextColor(COLOR_TEXT);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         titleRow.addView(title);
         panel.addView(titleRow, matchWrapWithBottom(18));
 
-        TextView question = bodyText("この予定を削除してよろしいですか？");
+        TextView question = bodyText("削除してよろしいですか？");
         question.setTextSize(scaledTextSize(21));
         panel.addView(question);
 
@@ -1498,17 +1541,19 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         eventBox.setBackground(japaneseBox(COLOR_BG, 6, 1, COLOR_LINE));
 
         TextView eventLabel = new TextView(this);
-        eventLabel.setText("削除する予定");
+        eventLabel.setText(itemLabel);
         eventLabel.setTextSize(scaledTextSize(16));
         eventLabel.setTextColor(COLOR_ACCENT);
         eventLabel.setTypeface(Typeface.DEFAULT_BOLD);
         eventBox.addView(eventLabel);
 
         TextView eventName = new TextView(this);
-        eventName.setText(eventTitle);
+        eventName.setText(itemName);
         eventName.setTextSize(scaledTextSize(25));
         eventName.setTextColor(COLOR_TEXT);
         eventName.setTypeface(Typeface.DEFAULT_BOLD);
+        eventName.setMaxLines(5);
+        eventName.setEllipsize(TextUtils.TruncateAt.END);
         eventName.setPadding(0, dp(6), 0, 0);
         eventBox.addView(eventName);
         panel.addView(eventBox, matchWrapWithBottom(12));
@@ -1545,10 +1590,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         dialog.setCanceledOnTouchOutside(false);
         cancelButton.setOnClickListener(v -> dialog.dismiss());
         deleteButton.setOnClickListener(v -> {
-            deleteEvent(index);
             dialog.dismiss();
-            Toast.makeText(MainActivity.this, "予定を削除しました", Toast.LENGTH_SHORT).show();
-            showCalendar();
+            deleteAction.run();
+            Toast.makeText(MainActivity.this, successMessage, Toast.LENGTH_SHORT).show();
         });
         dialog.setOnShowListener(d -> {
             if (dialog.getWindow() != null) {
@@ -1568,6 +1612,51 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         button.setGravity(Gravity.CENTER);
         button.setPadding(dp(8), dp(8), dp(8), dp(8));
         button.setBackground(japaneseBox(color, 6, 1, color));
+        return button;
+    }
+
+    private LinearLayout primaryDeleteActionRow(
+            String primaryLabel,
+            int primaryColor,
+            View.OnClickListener primaryListener,
+            View.OnClickListener deleteListener
+    ) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        Button primaryButton = smallButton(primaryLabel, primaryListener);
+        primaryButton.setBackground(japaneseBox(primaryColor, 6, 1, primaryColor));
+        LinearLayout.LayoutParams primaryParams = new LinearLayout.LayoutParams(0, dp(58), 3f);
+        primaryParams.setMargins(0, 0, dp(6), 0);
+        row.addView(primaryButton, primaryParams);
+
+        Button deleteButton = compactDeleteButton(deleteListener);
+        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        deleteParams.setMargins(dp(6), dp(5), 0, dp(5));
+        row.addView(deleteButton, deleteParams);
+        return row;
+    }
+
+    private LinearLayout compactDeleteOnlyRow(View.OnClickListener deleteListener) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(new View(this), new LinearLayout.LayoutParams(0, dp(48), 3f));
+
+        Button deleteButton = compactDeleteButton(deleteListener);
+        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        deleteParams.setMargins(dp(12), 0, 0, 0);
+        row.addView(deleteButton, deleteParams);
+        return row;
+    }
+
+    private Button compactDeleteButton(View.OnClickListener listener) {
+        Button button = smallButton("削除", listener);
+        button.setTextSize(scaledTextSize(16));
+        button.setMinHeight(0);
+        button.setPadding(dp(6), dp(4), dp(6), dp(4));
+        button.setBackground(japaneseBox(COLOR_EMERGENCY, 6, 1, COLOR_EMERGENCY));
         return button;
     }
 
@@ -2414,7 +2503,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
         items.remove(index);
         saveShoppingItems(items);
-        Toast.makeText(this, "買う物を削除しました", Toast.LENGTH_SHORT).show();
     }
 
     private void clearShoppingItems() {
@@ -2544,6 +2632,15 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         TodoItem item = items.get(index);
         item.done = !item.done;
         item.doneDate = item.done ? todayKey() : "";
+        saveTodos(items);
+    }
+
+    private void deleteTodo(int index) {
+        List<TodoItem> items = loadTodos();
+        if (index < 0 || index >= items.size()) {
+            return;
+        }
+        items.remove(index);
         saveTodos(items);
     }
 

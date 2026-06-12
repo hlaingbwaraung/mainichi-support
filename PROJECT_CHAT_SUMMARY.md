@@ -15,10 +15,16 @@ Android app for older users with large buttons, simple Japanese UI, and daily su
   - Completed items get a strikethrough.
   - Completed items are removed automatically the next day.
   - If no remaining item, home shows `今日やること: ありません`.
+  - Home summary, speech, and family share show the actual unfinished items.
+  - Complete/restore is large and delete is compact in the same row.
 - Shopping list:
   - Stores item name, amount, and number.
   - Bought items get a strikethrough instead of being deleted.
   - `全て削除` button is placed at top right.
+  - Bought/restore and compact delete actions are shown side by side.
+- List actions:
+  - Notes, medicine, family, todos, shopping, and schedules use compact delete actions.
+  - Destructive actions show the same large Japanese-style confirmation panel.
 - Premium screen:
   - Google Play monthly subscription at 500 yen.
   - Subscription product ID: `premium_monthly`.
