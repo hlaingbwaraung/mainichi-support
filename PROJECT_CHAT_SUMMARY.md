@@ -20,8 +20,11 @@ Android app for older users with large buttons, simple Japanese UI, and daily su
   - Bought items get a strikethrough instead of being deleted.
   - `全て削除` button is placed at top right.
 - Premium screen:
-  - Monthly 300 yen mock premium.
+  - Google Play monthly subscription.
+  - Product ID: `premium_monthly`.
+  - Base plan ID: `monthly`.
   - Premium hides ad placeholders.
+  - Purchase restore and Google Play subscription management.
   - Non-premium shows a subscribe recommendation after 5 seconds.
 - First-time setup:
   - Text size selection.
@@ -58,4 +61,5 @@ mainichi-support-v2.apk
 - Package: `com.example.seniorhelper`
 - App label: `まいにちサポート`
 - Main source: `app/src/main/java/com/example/seniorhelper/MainActivity.java`
+- Billing source: `app/src/main/java/com/example/seniorhelper/PlayBillingManager.java`
 - Alarm receiver: `app/src/main/java/com/example/seniorhelper/EventAlarmReceiver.java`

@@ -74,6 +74,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final String KEY_STEP_DATE = "step_date";
     private static final String KEY_STEP_HISTORY = "step_history";
     private static final String KEY_PREMIUM_ACTIVE = "premium_active";
+    private static final String KEY_REAL_BILLING_MIGRATED = "real_billing_migrated";
     private static final String KEY_TEXT_SCALE = "text_scale";
     private static final String KEY_ONBOARDING_DONE = "onboarding_done";
     private static final double FALLBACK_WEATHER_LATITUDE = 35.793;
@@ -107,6 +108,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private boolean textToSpeechReady = false;
     private boolean premiumPromptScheduled = false;
     private boolean premiumPromptShown = false;
+    private boolean billingStateChecked = false;
+    private String currentScreenTitle = "";
+    private PlayBillingManager billingManager;
     private int stepsToday = 0;
     private int selectedStepDayOffset = 0;
     private int draftEventHour = -1;
@@ -125,6 +129,36 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         createEventAlarmChannel();
         requestNeededPermissions();
         scheduleAllEventAlarms();
+        migrateFromTestPremium();
+        billingManager = new PlayBillingManager(this, new PlayBillingManager.Listener() {
+            @Override
+            public void onPremiumStatusChanged(boolean active, boolean firstCheck) {
+                boolean changed = isPremiumActive() != active;
+                prefs().edit().putBoolean(KEY_PREMIUM_ACTIVE, active).apply();
+                billingStateChecked = true;
+                if ("プレミアム".equals(currentScreenTitle)) {
+                    showPremiumScreen();
+                } else if (changed && "まいにちサポート".equals(currentScreenTitle)) {
+                    showHome();
+                }
+                if (!active) {
+                    schedulePremiumPrompt();
+                }
+            }
+
+            @Override
+            public void onBillingProductChanged(boolean available) {
+                if ("プレミアム".equals(currentScreenTitle)) {
+                    showPremiumScreen();
+                }
+            }
+
+            @Override
+            public void onBillingMessage(String message) {
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+            }
+        });
+        billingManager.start();
         if (isOnboardingDone()) {
             showHome();
         } else {
@@ -136,6 +170,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     protected void onResume() {
         super.onResume();
         registerStepSensor();
+        if (billingManager != null) {
+            billingManager.refreshPurchases(false);
+        }
         schedulePremiumPrompt();
     }
 
@@ -154,6 +191,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
+        }
+        if (billingManager != null) {
+            billingManager.endConnection();
         }
         super.onDestroy();
     }
@@ -1483,7 +1523,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showPremiumScreen() {
-        beginScreen("プレミアム", "月額300円で広告なし");
+        beginScreen("プレミアム", "広告なしでもっと便利に");
         root.addView(backButton());
 
         LinearLayout panel = card();
@@ -1491,33 +1531,54 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         title.setTextSize(30);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         panel.addView(title);
-        panel.addView(bodyText("月額 300円"));
+        String price = billingManager == null ? "¥300 / 月" : billingManager.getFormattedPrice();
+        panel.addView(bodyText(price));
         panel.addView(bodyText("Google広告を表示しません。"));
-        panel.addView(bodyText("すべての機能をそのまま使えます。"));
+        panel.addView(bodyText("家族を最大5人まで登録できます。"));
+        panel.addView(bodyText("毎月自動更新。Google Playでいつでも解約できます。"));
         root.addView(panel);
 
-        Button subscribe = bigButton(isPremiumActive() ? "登録済みです" : "月額300円で登録", "プレミアム会員に登録", new View.OnClickListener() {
+        Button subscribe = bigButton(isPremiumActive() ? "登録済みです" : price + "で登録", "Google Playでプレミアム会員に登録", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                activatePremiumForTesting();
+                if (billingManager != null) {
+                    billingManager.launchPurchase(MainActivity.this);
+                }
             }
         });
         subscribe.setBackground(japaneseBox(isPremiumActive() ? COLOR_SECONDARY : COLOR_ACCENT, 6, 1, COLOR_ACCENT));
+        subscribe.setEnabled(!isPremiumActive());
         root.addView(subscribe);
 
         if (isPremiumActive()) {
             root.addView(bodyText("現在、広告は非表示です。"));
-            Button cancel = bigButton("プレミアムをキャンセル", "プレミアム会員をキャンセル", COLOR_EMERGENCY, new View.OnClickListener() {
+            Button cancel = bigButton("定期購入を管理・解約", "Google Playでプレミアム会員を管理", COLOR_EMERGENCY, new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    cancelPremiumForTesting();
+                    if (billingManager != null) {
+                        billingManager.openManageSubscription(MainActivity.this);
+                    }
                 }
             });
             root.addView(cancel);
         } else {
-            root.addView(bodyText("実際の課金にはGoogle Playの商品IDが必要です。"));
+            if (billingManager != null && !billingManager.isProductAvailable()) {
+                root.addView(bodyText(billingManager.isProductQueryFinished()
+                        ? "Google Playで商品を取得できませんでした。Playストア版でお試しください。"
+                        : "Google Playの商品情報を確認しています。"));
+            }
             addAdBanner();
         }
+
+        Button restore = bigButton("購入を復元", "以前のプレミアム購入を復元", COLOR_SECONDARY, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (billingManager != null) {
+                    billingManager.refreshPurchases(true);
+                }
+            }
+        });
+        root.addView(restore);
     }
 
     private void showSettings() {
@@ -1761,6 +1822,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void beginScreen(String title, String subtitle) {
+        currentScreenTitle = title;
         FrameLayout screen = new FrameLayout(this);
         screen.addView(new WashiBackgroundView(this), new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -2707,20 +2769,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return prefs().getBoolean(KEY_ONBOARDING_DONE, false);
     }
 
-    private void activatePremiumForTesting() {
-        prefs().edit().putBoolean(KEY_PREMIUM_ACTIVE, true).apply();
-        Toast.makeText(this, "プレミアム会員になりました", Toast.LENGTH_LONG).show();
-        showPremiumScreen();
-    }
-
-    private void cancelPremiumForTesting() {
-        prefs().edit().putBoolean(KEY_PREMIUM_ACTIVE, false).apply();
-        Toast.makeText(this, "プレミアム会員をキャンセルしました", Toast.LENGTH_LONG).show();
-        showPremiumScreen();
+    private void migrateFromTestPremium() {
+        if (!prefs().getBoolean(KEY_REAL_BILLING_MIGRATED, false)) {
+            prefs().edit()
+                    .putBoolean(KEY_PREMIUM_ACTIVE, false)
+                    .putBoolean(KEY_REAL_BILLING_MIGRATED, true)
+                    .apply();
+        }
     }
 
     private void schedulePremiumPrompt() {
-        if (!isOnboardingDone() || isPremiumActive() || premiumPromptShown || premiumPromptScheduled) {
+        if (!billingStateChecked || !isOnboardingDone() || isPremiumActive() || premiumPromptShown || premiumPromptScheduled) {
             return;
         }
         premiumPromptScheduled = true;
