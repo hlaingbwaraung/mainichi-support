@@ -1408,14 +1408,33 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             Button delete = smallButton("削除", new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    deleteEvent(index);
-                    showCalendar();
+                    showDeleteEventConfirmation(index, event.title);
                 }
             });
             card.addView(delete);
             root.addView(card);
         }
         addAdBanner();
+    }
+
+    private void showDeleteEventConfirmation(final int index, String eventTitle) {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("予定を削除")
+                .setMessage("「" + eventTitle + "」を削除してよろしいですか？")
+                .setPositiveButton("削除する", (d, which) -> {
+                    deleteEvent(index);
+                    Toast.makeText(MainActivity.this, "予定を削除しました", Toast.LENGTH_SHORT).show();
+                    showCalendar();
+                })
+                .setNegativeButton("キャンセル", null)
+                .create();
+        dialog.setOnShowListener(d -> {
+            Button deleteButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            deleteButton.setTextSize(20);
+            deleteButton.setTextColor(COLOR_EMERGENCY);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
+        });
+        dialog.show();
     }
 
     private void showEventForm() {
