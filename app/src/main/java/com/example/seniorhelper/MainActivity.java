@@ -18,6 +18,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -1418,23 +1419,110 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showDeleteEventConfirmation(final int index, String eventTitle) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(24), dp(22), dp(24), dp(24));
+        panel.setBackground(japaneseBox(COLOR_CARD, 8, 1, COLOR_ACCENT));
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        View accent = new View(this);
+        accent.setBackgroundColor(COLOR_ACCENT);
+        LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(4), dp(38));
+        accentParams.setMargins(0, 0, dp(12), 0);
+        titleRow.addView(accent, accentParams);
+
+        TextView title = new TextView(this);
+        title.setText("予定を削除");
+        title.setTextSize(scaledTextSize(28));
+        title.setTextColor(COLOR_TEXT);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        titleRow.addView(title);
+        panel.addView(titleRow, matchWrapWithBottom(18));
+
+        TextView question = bodyText("この予定を削除してよろしいですか？");
+        question.setTextSize(scaledTextSize(21));
+        panel.addView(question);
+
+        LinearLayout eventBox = new LinearLayout(this);
+        eventBox.setOrientation(LinearLayout.VERTICAL);
+        eventBox.setPadding(dp(16), dp(14), dp(16), dp(14));
+        eventBox.setBackground(japaneseBox(COLOR_BG, 6, 1, COLOR_LINE));
+
+        TextView eventLabel = new TextView(this);
+        eventLabel.setText("削除する予定");
+        eventLabel.setTextSize(scaledTextSize(16));
+        eventLabel.setTextColor(COLOR_ACCENT);
+        eventLabel.setTypeface(Typeface.DEFAULT_BOLD);
+        eventBox.addView(eventLabel);
+
+        TextView eventName = new TextView(this);
+        eventName.setText(eventTitle);
+        eventName.setTextSize(scaledTextSize(25));
+        eventName.setTextColor(COLOR_TEXT);
+        eventName.setTypeface(Typeface.DEFAULT_BOLD);
+        eventName.setPadding(0, dp(6), 0, 0);
+        eventBox.addView(eventName);
+        panel.addView(eventBox, matchWrapWithBottom(12));
+
+        TextView warning = new TextView(this);
+        warning.setText("削除すると元に戻せません");
+        warning.setTextSize(scaledTextSize(18));
+        warning.setTextColor(COLOR_EMERGENCY);
+        warning.setGravity(Gravity.CENTER);
+        warning.setTypeface(Typeface.DEFAULT_BOLD);
+        panel.addView(warning, matchWrapWithBottom(20));
+
+        LinearLayout buttonRow = new LinearLayout(this);
+        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
+        buttonRow.setGravity(Gravity.CENTER);
+
+        Button cancelButton = dialogActionButton("戻る", COLOR_SECONDARY);
+        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0, dp(68), 1f);
+        cancelParams.setMargins(0, 0, dp(6), 0);
+        buttonRow.addView(cancelButton, cancelParams);
+
+        Button deleteButton = dialogActionButton("削除する", COLOR_EMERGENCY);
+        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(68), 1f);
+        deleteParams.setMargins(dp(6), 0, 0, 0);
+        buttonRow.addView(deleteButton, deleteParams);
+        panel.addView(buttonRow, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("予定を削除")
-                .setMessage("「" + eventTitle + "」を削除してよろしいですか？")
-                .setPositiveButton("削除する", (d, which) -> {
-                    deleteEvent(index);
-                    Toast.makeText(MainActivity.this, "予定を削除しました", Toast.LENGTH_SHORT).show();
-                    showCalendar();
-                })
-                .setNegativeButton("キャンセル", null)
+                .setView(panel)
                 .create();
+        dialog.setCanceledOnTouchOutside(false);
+        cancelButton.setOnClickListener(v -> dialog.dismiss());
+        deleteButton.setOnClickListener(v -> {
+            deleteEvent(index);
+            dialog.dismiss();
+            Toast.makeText(MainActivity.this, "予定を削除しました", Toast.LENGTH_SHORT).show();
+            showCalendar();
+        });
         dialog.setOnShowListener(d -> {
-            Button deleteButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-            deleteButton.setTextSize(20);
-            deleteButton.setTextColor(COLOR_EMERGENCY);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            }
         });
         dialog.show();
+    }
+
+    private Button dialogActionButton(String label, int color) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextSize(scaledTextSize(21));
+        button.setAllCaps(false);
+        button.setTextColor(Color.WHITE);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(8), dp(8), dp(8), dp(8));
+        button.setBackground(japaneseBox(color, 6, 1, color));
+        return button;
     }
 
     private void showEventForm() {
