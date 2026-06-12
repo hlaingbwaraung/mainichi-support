@@ -346,17 +346,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
         List<CalendarEvent> todayEvents = todayItems(loadEvents());
         List<CalendarEvent> todayMedicines = todayItems(loadTimedList(KEY_MEDICINES));
-        List<TodoItem> todos = loadTodos();
-        int remainingTodos = 0;
-        for (TodoItem todo : todos) {
-            if (!todo.done) {
-                remainingTodos++;
-            }
-        }
+        List<TodoItem> remainingTodos = remainingTodos();
 
         panel.addView(compactBodyText(todayEvents.isEmpty() ? "今日の予定: ありません" : "今日の予定: " + formatTodayItemList(todayEvents)));
         panel.addView(compactBodyText(todayMedicines.isEmpty() ? "今日の薬: ありません" : "今日の薬: " + formatTodayItemList(todayMedicines)));
-        panel.addView(compactBodyText(remainingTodos == 0 ? "今日やること: ありません" : "今日やること: 残り " + remainingTodos + " 件"));
+        panel.addView(compactBodyText(remainingTodos.isEmpty()
+                ? "今日やること: ありません"
+                : "今日やること:\n" + formatTodoDisplayList(remainingTodos)));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -424,6 +420,27 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 builder.append("\n");
             }
             builder.append(formatEventTimeOnly(item.timeMillis)).append("  ").append(item.title);
+        }
+        return builder.toString();
+    }
+
+    private List<TodoItem> remainingTodos() {
+        List<TodoItem> remaining = new ArrayList<>();
+        for (TodoItem todo : loadTodos()) {
+            if (!todo.done && !todo.text.trim().isEmpty()) {
+                remaining.add(todo);
+            }
+        }
+        return remaining;
+    }
+
+    private String formatTodoDisplayList(List<TodoItem> todos) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < todos.size(); i++) {
+            if (i > 0) {
+                builder.append("\n");
+            }
+            builder.append("・").append(todos.get(i).text);
         }
         return builder.toString();
     }
@@ -2798,17 +2815,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 builder.append(formatEventTimeOnly(medicine.timeMillis)).append("、").append(medicine.title).append("。");
             }
         }
-        List<TodoItem> todos = loadTodos();
-        int remaining = 0;
-        for (TodoItem todo : todos) {
-            if (!todo.done) {
-                remaining++;
-            }
-        }
-        if (remaining == 0) {
+        List<TodoItem> todos = remainingTodos();
+        if (todos.isEmpty()) {
             builder.append("今日やることはありません。");
         } else {
-            builder.append("今日やることは、残り").append(remaining).append("件です。");
+            builder.append("今日やることは、");
+            for (TodoItem todo : todos) {
+                builder.append(todo.text).append("。");
+            }
         }
         return builder.toString();
     }
