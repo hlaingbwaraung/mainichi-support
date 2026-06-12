@@ -1273,13 +1273,42 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 text.setTextColor(COLOR_MUTED);
             }
             item.addView(text);
-            item.addView(smallButton(value.bought ? "戻す" : "買った", new View.OnClickListener() {
+
+            LinearLayout actionRow = new LinearLayout(this);
+            actionRow.setOrientation(LinearLayout.HORIZONTAL);
+            actionRow.setGravity(Gravity.CENTER_VERTICAL);
+
+            Button boughtButton = smallButton(value.bought ? "戻す" : "買った", new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     toggleShoppingBought(index);
                     showShopping();
                 }
-            }));
+            });
+            boughtButton.setBackground(japaneseBox(COLOR_SHOPPING, 6, 1, COLOR_SHOPPING));
+            LinearLayout.LayoutParams boughtParams = new LinearLayout.LayoutParams(0, dp(58), 3f);
+            boughtParams.setMargins(0, 0, dp(6), 0);
+            actionRow.addView(boughtButton, boughtParams);
+
+            Button deleteButton = smallButton("削除", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    deleteShoppingItem(index);
+                    showShopping();
+                }
+            });
+            deleteButton.setTextSize(scaledTextSize(16));
+            deleteButton.setMinHeight(0);
+            deleteButton.setPadding(dp(6), dp(4), dp(6), dp(4));
+            deleteButton.setBackground(japaneseBox(COLOR_EMERGENCY, 6, 1, COLOR_EMERGENCY));
+            LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
+            deleteParams.setMargins(dp(6), dp(5), 0, dp(5));
+            actionRow.addView(deleteButton, deleteParams);
+
+            item.addView(actionRow, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            ));
             root.addView(item);
         }
         addAdBanner();
@@ -2376,6 +2405,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
         items.get(index).bought = !items.get(index).bought;
         saveShoppingItems(items);
+    }
+
+    private void deleteShoppingItem(int index) {
+        List<ShoppingItem> items = loadShoppingItems();
+        if (index < 0 || index >= items.size()) {
+            return;
+        }
+        items.remove(index);
+        saveShoppingItems(items);
+        Toast.makeText(this, "買う物を削除しました", Toast.LENGTH_SHORT).show();
     }
 
     private void clearShoppingItems() {
