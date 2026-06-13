@@ -19,7 +19,7 @@ Android app for older users with large buttons, simple Japanese UI, and daily su
   - Home summary, speech, and family share show the actual unfinished items.
   - Complete/restore is large and delete is compact in the same row.
 - Shopping list:
-  - Stores item name, amount, and number.
+  - Stores only item name and amount.
   - Bought items get a strikethrough instead of being deleted.
   - `全て削除` button is placed at top right.
   - Bought/restore and compact delete actions are shown side by side.

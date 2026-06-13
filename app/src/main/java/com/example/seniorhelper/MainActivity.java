@@ -1418,7 +1418,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showShopping() {
-        beginScreen("買い物リスト", "名前・数・番号を大きく表示");
+        beginScreen("買い物リスト", "商品名と数量を大きく表示");
         LinearLayout topRow = new LinearLayout(this);
         topRow.setOrientation(LinearLayout.HORIZONTAL);
         Button back = backButton();
@@ -1494,10 +1494,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private String formatShoppingItem(ShoppingItem item) {
         StringBuilder builder = new StringBuilder(item.name);
         if (!item.amount.isEmpty()) {
-            builder.append("\n数: ").append(item.amount);
-        }
-        if (!item.number.isEmpty()) {
-            builder.append("\nNo: ").append(item.number);
+            builder.append("\n数量: ").append(item.amount);
         }
         return builder.toString();
     }
@@ -1509,18 +1506,25 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
         final EditText nameInput = new EditText(this);
         nameInput.setTextSize(scaledTextSize(24));
-        nameInput.setHint("名前 例：牛乳");
+        nameInput.setHint("商品名");
+        nameInput.setSingleLine(true);
+        nameInput.setImeOptions(EditorInfo.IME_ACTION_NEXT);
         layout.addView(nameInput, matchWrap());
 
         final EditText amountInput = new EditText(this);
         amountInput.setTextSize(scaledTextSize(24));
-        amountInput.setHint("数 例：2本");
+        amountInput.setHint("数量");
+        amountInput.setSingleLine(true);
+        amountInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
         layout.addView(amountInput, matchWrap());
 
-        final EditText numberInput = new EditText(this);
-        numberInput.setTextSize(scaledTextSize(24));
-        numberInput.setHint("番号 例：3番");
-        layout.addView(numberInput, matchWrap());
+        nameInput.setOnEditorActionListener((view, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_NEXT) {
+                amountInput.requestFocus();
+                return true;
+            }
+            return false;
+        });
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("買う物を追加")
@@ -1540,7 +1544,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 addShoppingItem(new ShoppingItem(
                         name,
                         amountInput.getText().toString().trim(),
-                        numberInput.getText().toString().trim(),
                         false
                 ));
                 dialog.dismiss();
@@ -2645,11 +2648,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     items.add(new ShoppingItem(
                             object.optString("name", ""),
                             object.optString("amount", ""),
-                            object.optString("number", ""),
                             object.optBoolean("bought", false)
                     ));
                 } else {
-                    items.add(new ShoppingItem(String.valueOf(value), "", "", false));
+                    items.add(new ShoppingItem(String.valueOf(value), "", false));
                 }
             }
         } catch (JSONException ignored) {
@@ -2693,7 +2695,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             try {
                 object.put("name", item.name);
                 object.put("amount", item.amount);
-                object.put("number", item.number);
                 object.put("bought", item.bought);
                 array.put(object);
             } catch (JSONException ignored) {
@@ -3379,13 +3380,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static class ShoppingItem {
         final String name;
         final String amount;
-        final String number;
         boolean bought;
 
-        ShoppingItem(String name, String amount, String number, boolean bought) {
+        ShoppingItem(String name, String amount, boolean bought) {
             this.name = name;
             this.amount = amount;
-            this.number = number;
             this.bought = bought;
         }
     }
