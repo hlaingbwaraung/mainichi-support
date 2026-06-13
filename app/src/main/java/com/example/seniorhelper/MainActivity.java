@@ -31,7 +31,12 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.speech.tts.TextToSpeech;
 import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextUtils;
+import android.text.TextPaint;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -83,6 +88,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final String KEY_STEP_HISTORY = "step_history";
     private static final String KEY_PREMIUM_ACTIVE = "premium_active";
     private static final String KEY_PREMIUM_PLAN = "premium_plan";
+    private static final String KEY_MONTHLY_AUTO_RENEWING = "monthly_auto_renewing";
+    private static final String KEY_MONTHLY_PURCHASE_TIME = "monthly_purchase_time";
+    private static final String KEY_CANCELLATION_PENDING = "cancellation_pending";
+    private static final String KEY_CANCELLATION_REASON = "cancellation_reason";
     private static final String KEY_REAL_BILLING_MIGRATED = "real_billing_migrated";
     private static final String KEY_TEXT_SCALE = "text_scale";
     private static final String KEY_BOLD_TEXT = "bold_text";
@@ -166,6 +175,29 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 }
                 if (!active) {
                     schedulePremiumPrompt();
+                }
+            }
+
+            @Override
+            public void onMonthlySubscriptionStateChanged(
+                    boolean active,
+                    boolean autoRenewing,
+                    long purchaseTimeMillis
+            ) {
+                SharedPreferences.Editor editor = prefs().edit()
+                        .putBoolean(KEY_MONTHLY_AUTO_RENEWING, active && autoRenewing);
+                if (active && purchaseTimeMillis > 0L) {
+                    editor.putLong(KEY_MONTHLY_PURCHASE_TIME, purchaseTimeMillis);
+                }
+                editor.apply();
+                if ((!active || !autoRenewing)
+                        && prefs().getBoolean(KEY_CANCELLATION_PENDING, false)) {
+                    prefs().edit().putBoolean(KEY_CANCELLATION_PENDING, false).apply();
+                    showSubscriptionCancellationComplete();
+                    return;
+                }
+                if ("プレミアム".equals(currentScreenTitle)) {
+                    showPremiumScreen();
                 }
             }
 
@@ -2000,15 +2032,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             if (plan == PlayBillingManager.PremiumPlan.LIFETIME) {
                 statusPanel.addView(bodyText("追加のお支払いはありません。ずっと利用できます。"));
             } else {
-                statusPanel.addView(bodyText("毎月自動更新。Google Playでいつでも解約できます。"));
-                statusPanel.addView(bigButton("定期購入を管理・解約", "Google Playで月額プランを管理", COLOR_EMERGENCY, new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        if (billingManager != null) {
-                            billingManager.openManageSubscription(MainActivity.this);
-                        }
+                if (isMonthlyAutoRenewing()) {
+                    statusPanel.addView(bodyText("毎月自動更新。Google Playでいつでも解約できます。"));
+                    statusPanel.addView(premiumCancellationLink());
+                } else {
+                    statusTitle.setText("月額プランは解約済み");
+                    statusPanel.addView(bodyText("自動更新は停止されています。利用期限まではプレミアム機能を使えます。"));
+                    String nextDate = estimatedNextBillingDate();
+                    if (!nextDate.isEmpty()) {
+                        statusPanel.addView(bodyText("利用期限の目安: " + nextDate));
                     }
-                }));
+                }
             }
             root.addView(statusPanel);
         } else {
@@ -2065,6 +2099,173 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         });
         root.addView(restore);
+    }
+
+    private TextView premiumCancellationLink() {
+        final String value = "プレミアム会員キャンセルはこちら";
+        final String linkValue = "こちら";
+        SpannableString text = new SpannableString(value);
+        int linkStart = value.indexOf(linkValue);
+        text.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(View widget) {
+                showCancellationSurvey();
+            }
+
+            @Override
+            public void updateDrawState(TextPaint drawState) {
+                drawState.setColor(Color.rgb(24, 92, 180));
+                drawState.setUnderlineText(true);
+                drawState.setFakeBoldText(true);
+            }
+        }, linkStart, linkStart + linkValue.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+        TextView link = bodyText("");
+        link.setText(text);
+        link.setMovementMethod(LinkMovementMethod.getInstance());
+        link.setHighlightColor(Color.TRANSPARENT);
+        link.setContentDescription("プレミアム会員キャンセルはこちら");
+        return link;
+    }
+
+    private void showCancellationSurvey() {
+        beginScreen("解約アンケート", "解約理由を1つ選んでください");
+        root.addView(premiumBackButton());
+
+        LinearLayout panel = card();
+        panel.addView(sectionTitle("解約する理由"));
+        panel.addView(bodyText("今後の改善のため、当てはまる理由を選んでください。"));
+        String[] reasons = {
+                "料金が高い",
+                "あまり使わない",
+                "必要な機能がない",
+                "操作が難しい",
+                "その他"
+        };
+        for (String reason : reasons) {
+            Button reasonButton = bigButton(
+                    reason,
+                    "解約理由: " + reason,
+                    COLOR_SECONDARY,
+                    v -> showCancellationConfirmation(reason)
+            );
+            panel.addView(reasonButton);
+        }
+        root.addView(panel);
+    }
+
+    private void showCancellationConfirmation(String reason) {
+        beginScreen("解約内容の確認", "アンケートの回答を受け付けました");
+        root.addView(smallButton("アンケートへ戻る", v -> showCancellationSurvey()));
+
+        LinearLayout panel = card();
+        panel.addView(sectionTitle("選んだ理由"));
+        TextView reasonText = bodyText(reason);
+        reasonText.setTypeface(Typeface.DEFAULT_BOLD);
+        panel.addView(reasonText);
+        panel.addView(bodyText("解約しても、現在のお支払い期間が終わるまではプレミアム機能を使えます。"));
+        panel.addView(bodyText("実際の解約はGoogle Playで行います。"));
+        panel.addView(bigButton(
+                "Google Playで解約する",
+                "Google Playで月額プレミアムを解約",
+                COLOR_EMERGENCY,
+                v -> startSubscriptionCancellation(reason)
+        ));
+        root.addView(panel);
+    }
+
+    private void startSubscriptionCancellation(String reason) {
+        prefs().edit()
+                .putString(KEY_CANCELLATION_REASON, reason)
+                .putBoolean(KEY_CANCELLATION_PENDING, true)
+                .apply();
+        showCancellationWaitingScreen();
+        if (billingManager != null) {
+            billingManager.openManageSubscription(this);
+        } else {
+            Toast.makeText(this, "Google Playに接続できませんでした", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showCancellationWaitingScreen() {
+        beginScreen("解約手続き", "Google Playで解約を完了してください");
+
+        LinearLayout panel = card();
+        panel.addView(sectionTitle("解約状態を確認します"));
+        panel.addView(bodyText("Google Playで「定期購入を解約」を完了してから、このアプリへ戻ってください。"));
+        panel.addView(bodyText("戻ると自動で確認します。反映に少し時間がかかる場合があります。"));
+        panel.addView(bigButton(
+                "Google Playで解約する",
+                "Google Playの解約画面を開く",
+                COLOR_EMERGENCY,
+                v -> {
+                    if (billingManager != null) {
+                        billingManager.openManageSubscription(MainActivity.this);
+                    }
+                }
+        ));
+        panel.addView(bigButton(
+                "解約状態を確認",
+                "Google Playの解約状態を確認",
+                COLOR_PRIMARY,
+                v -> {
+                    if (billingManager != null) {
+                        billingManager.refreshPurchases(true);
+                    }
+                }
+        ));
+        root.addView(panel);
+        root.addView(bigButton("ホームに戻る", "ホームに戻る", COLOR_SECONDARY, v -> showHome()));
+    }
+
+    private void showSubscriptionCancellationComplete() {
+        beginScreen("解約完了", "月額プレミアムの自動更新を停止しました");
+
+        LinearLayout panel = card();
+        TextView title = sectionTitle("解約が完了しました");
+        title.setTextSize(scaledTextSize(28));
+        panel.addView(title);
+        if (isPremiumActive()) {
+            String nextDate = estimatedNextBillingDate();
+            panel.addView(bodyText("次の更新日まではプレミアム機能をそのまま使えます。"));
+            if (!nextDate.isEmpty()) {
+                TextView date = bodyText("次の更新日（利用期限の目安）\n" + nextDate);
+                date.setTextSize(scaledTextSize(24));
+                date.setTypeface(Typeface.DEFAULT_BOLD);
+                date.setGravity(Gravity.CENTER);
+                date.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
+                panel.addView(date);
+            }
+            panel.addView(bodyText("Google Playに表示される利用期限が正式な日付です。期限後は自動で無料版に戻ります。"));
+        } else {
+            panel.addView(bodyText("プレミアムの利用期間が終了し、無料版へ切り替わりました。"));
+        }
+        root.addView(panel);
+        root.addView(bigButton("ホームに戻る", "ホームに戻る", COLOR_PRIMARY, v -> showHome()));
+    }
+
+    private Button premiumBackButton() {
+        return smallButton("プレミアムへ戻る", v -> showPremiumScreen());
+    }
+
+    private boolean isMonthlyAutoRenewing() {
+        return prefs().getBoolean(KEY_MONTHLY_AUTO_RENEWING, true);
+    }
+
+    private String estimatedNextBillingDate() {
+        long purchaseTime = prefs().getLong(KEY_MONTHLY_PURCHASE_TIME, 0L);
+        if (purchaseTime <= 0L) {
+            return "";
+        }
+        Calendar next = Calendar.getInstance(Locale.JAPAN);
+        next.setTimeInMillis(purchaseTime);
+        long now = System.currentTimeMillis();
+        int guard = 0;
+        while (next.getTimeInMillis() <= now && guard < 240) {
+            next.add(Calendar.MONTH, 1);
+            guard++;
+        }
+        return new SimpleDateFormat("yyyy年M月d日", Locale.JAPAN).format(next.getTime());
     }
 
     private void showSettings() {

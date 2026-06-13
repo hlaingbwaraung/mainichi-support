@@ -34,6 +34,7 @@ Android app for older users with large buttons, simple Japanese UI, and daily su
   - One-time product ID: `premium_lifetime`.
   - Premium hides ad placeholders.
   - Purchase restore and Google Play subscription management.
+  - Monthly members can answer a cancellation survey, cancel through Google Play, and see a completion screen after auto-renewal stops.
   - Non-premium shows a subscribe recommendation after 5 seconds.
 - First-time setup:
   - Text size selection.

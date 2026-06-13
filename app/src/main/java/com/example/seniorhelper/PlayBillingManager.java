@@ -34,6 +34,12 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
     public interface Listener {
         void onPremiumStatusChanged(PremiumPlan plan, boolean firstCheck);
 
+        void onMonthlySubscriptionStateChanged(
+                boolean active,
+                boolean autoRenewing,
+                long purchaseTimeMillis
+        );
+
         void onBillingProductChanged(boolean available);
 
         void onBillingMessage(String message);
@@ -166,6 +172,9 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
         if (responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
             PremiumPlan purchasedPlan = PremiumPlan.NONE;
             boolean pending = false;
+            boolean monthlyActive = false;
+            boolean monthlyAutoRenewing = false;
+            long monthlyPurchaseTime = 0L;
             for (Purchase purchase : purchases) {
                 PremiumPlan plan = planForPurchase(purchase);
                 if (plan == PremiumPlan.NONE) {
@@ -177,6 +186,11 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
                     } else if (purchasedPlan == PremiumPlan.NONE) {
                         purchasedPlan = PremiumPlan.MONTHLY;
                     }
+                    if (plan == PremiumPlan.MONTHLY) {
+                        monthlyActive = true;
+                        monthlyAutoRenewing = purchase.isAutoRenewing();
+                        monthlyPurchaseTime = purchase.getPurchaseTime();
+                    }
                     acknowledgeIfNeeded(purchase);
                 } else if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
                     pending = true;
@@ -184,6 +198,11 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
             }
             if (purchasedPlan != PremiumPlan.NONE) {
                 listener.onPremiumStatusChanged(purchasedPlan, false);
+                listener.onMonthlySubscriptionStateChanged(
+                        monthlyActive,
+                        monthlyAutoRenewing,
+                        monthlyPurchaseTime
+                );
                 listener.onBillingMessage("プレミアム会員の登録が完了しました。");
             } else if (pending) {
                 listener.onBillingMessage("お支払いは確認中です。完了後にプレミアムが有効になります。");
@@ -240,7 +259,7 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
                             || purchase.getPurchaseState() != Purchase.PurchaseState.PURCHASED) {
                         continue;
                     }
-                    refresh.markActive(plan);
+                    refresh.markActive(plan, purchase);
                     acknowledgeIfNeeded(purchase);
                 }
             }
@@ -398,15 +417,23 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
         private int completedQueries = 0;
         private int failedQueries = 0;
         private PremiumPlan activePlan = PremiumPlan.NONE;
+        private boolean monthlyActive = false;
+        private boolean monthlyAutoRenewing = false;
+        private long monthlyPurchaseTime = 0L;
         private BillingResult lastFailure;
 
         private PurchaseRefresh(boolean userInitiated) {
             this.userInitiated = userInitiated;
         }
 
-        private void markActive(PremiumPlan plan) {
+        private void markActive(PremiumPlan plan, Purchase purchase) {
             if (plan == PremiumPlan.LIFETIME || activePlan == PremiumPlan.NONE) {
                 activePlan = plan;
+            }
+            if (plan == PremiumPlan.MONTHLY) {
+                monthlyActive = true;
+                monthlyAutoRenewing = purchase.isAutoRenewing();
+                monthlyPurchaseTime = purchase.getPurchaseTime();
             }
         }
 
@@ -430,6 +457,11 @@ public final class PlayBillingManager implements PurchasesUpdatedListener {
             boolean firstCheck = !firstPurchaseQueryCompleted;
             firstPurchaseQueryCompleted = true;
             listener.onPremiumStatusChanged(activePlan, firstCheck);
+            listener.onMonthlySubscriptionStateChanged(
+                    monthlyActive,
+                    monthlyAutoRenewing,
+                    monthlyPurchaseTime
+            );
             if (userInitiated) {
                 listener.onBillingMessage(activePlan == PremiumPlan.NONE
                         ? "有効なプレミアム購入は見つかりませんでした。"
