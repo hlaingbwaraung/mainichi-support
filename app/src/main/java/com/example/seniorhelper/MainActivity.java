@@ -84,8 +84,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final String KEY_REAL_BILLING_MIGRATED = "real_billing_migrated";
     private static final String KEY_TEXT_SCALE = "text_scale";
     private static final String KEY_ONBOARDING_DONE = "onboarding_done";
-    private static final double FALLBACK_WEATHER_LATITUDE = 35.793;
-    private static final double FALLBACK_WEATHER_LONGITUDE = 139.565;
+    private static final long WEATHER_LOCATION_TIMEOUT_MS = 6000L;
+    private static final long MAX_LAST_LOCATION_AGE_MS = 30L * 60L * 1000L;
+    private static final float GOOD_WEATHER_LOCATION_ACCURACY_METERS = 250f;
     private static final int COLOR_BG = Color.rgb(250, 248, 243);
     private static final int COLOR_CARD = Color.rgb(255, 255, 252);
     private static final int COLOR_TEXT = Color.rgb(29, 30, 32);
@@ -112,6 +113,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private StepGraphView stepGraphView;
     private TextView weatherView;
     private final Handler promptHandler = new Handler(Looper.getMainLooper());
+    private final Handler weatherHandler = new Handler(Looper.getMainLooper());
     private TextToSpeech textToSpeech;
     private boolean textToSpeechReady = false;
     private boolean premiumPromptScheduled = false;
@@ -125,6 +127,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private int draftEventMinute = -1;
     private int draftMedicineHour = -1;
     private int draftMedicineMinute = -1;
+    private LocationManager weatherLocationManager;
+    private LocationListener weatherLocationListener;
+    private Location bestWeatherLocation;
+    private int weatherRequestId = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -182,6 +188,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     protected void onResume() {
         super.onResume();
         registerStepSensor();
+        if ("まいにちサポート".equals(currentScreenTitle)
+                && weatherView != null
+                && weatherView.getText().toString().contains("取得中")) {
+            fetchWeather();
+        }
         if (billingManager != null) {
             billingManager.refreshPurchases(false);
         }
@@ -194,6 +205,8 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             sensorManager.unregisterListener(this);
         }
         promptHandler.removeCallbacksAndMessages(null);
+        weatherHandler.removeCallbacksAndMessages(null);
+        cancelWeatherLocationRequest();
         premiumPromptScheduled = false;
         super.onPause();
     }
@@ -325,6 +338,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         weatherView.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         weatherView.setTypeface(Typeface.DEFAULT_BOLD);
         weatherView.setPadding(dp(8), 0, 0, 0);
+        weatherView.setContentDescription("現在地の天気。押すと更新");
+        weatherView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                fetchWeather();
+            }
+        });
         panel.addView(weatherView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         root.addView(panel, matchWrapWithBottom(10));
@@ -455,12 +475,15 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         if (weatherView == null) {
             return;
         }
+        final int requestId = ++weatherRequestId;
+        weatherHandler.removeCallbacksAndMessages(null);
+        cancelWeatherLocationRequest();
         weatherView.setText("--℃ 取得中");
         if (!hasLocationPermission()) {
-            weatherView.setText("--℃ 位置許可");
+            weatherView.setText("--℃ 位置情報を許可");
             return;
         }
-        requestOneWeatherLocation();
+        requestWeatherLocation(requestId);
     }
 
     private boolean hasLocationPermission() {
@@ -468,7 +491,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private Location getBestLastLocation() {
+    private Location getBestRecentLocation() {
         LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (manager == null || !hasLocationPermission()) {
             return null;
@@ -478,7 +501,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             List<String> providers = manager.getProviders(true);
             for (String provider : providers) {
                 Location location = manager.getLastKnownLocation(provider);
-                if (location != null && (best == null || location.getTime() > best.getTime())) {
+                if (isRecentWeatherLocation(location) && isBetterWeatherLocation(location, best)) {
                     best = location;
                 }
             }
@@ -488,61 +511,156 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return best;
     }
 
-    private void requestOneWeatherLocation() {
+    private void requestWeatherLocation(final int requestId) {
         final LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
         if (manager == null || !hasLocationPermission()) {
-            fetchWeatherForLocation(FALLBACK_WEATHER_LATITUDE, FALLBACK_WEATHER_LONGITUDE);
+            showWeatherStatus(requestId, "--℃ 位置情報なし");
             return;
         }
-        final LocationListener listener = new LocationListener() {
+        weatherLocationManager = manager;
+        bestWeatherLocation = getBestRecentLocation();
+        weatherLocationListener = new LocationListener() {
             @Override
             public void onLocationChanged(Location location) {
-                manager.removeUpdates(this);
-                fetchWeatherForLocation(location.getLatitude(), location.getLongitude());
+                if (requestId != weatherRequestId
+                        || weatherLocationListener != this
+                        || !isRecentWeatherLocation(location)) {
+                    return;
+                }
+                if (isBetterWeatherLocation(location, bestWeatherLocation)) {
+                    bestWeatherLocation = location;
+                }
+                if (location.hasAccuracy()
+                        && location.getAccuracy() <= GOOD_WEATHER_LOCATION_ACCURACY_METERS) {
+                    finishWeatherLocation(requestId);
+                }
             }
         };
         try {
-            String provider = manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-                    ? LocationManager.GPS_PROVIDER
-                    : LocationManager.NETWORK_PROVIDER;
-            manager.requestSingleUpdate(provider, listener, Looper.getMainLooper());
-            promptHandler.postDelayed(new Runnable() {
+            boolean requested = false;
+            if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                manager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        0L,
+                        0f,
+                        weatherLocationListener,
+                        Looper.getMainLooper()
+                );
+                requested = true;
+            }
+            if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                manager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        0L,
+                        0f,
+                        weatherLocationListener,
+                        Looper.getMainLooper()
+                );
+                requested = true;
+            }
+            if (!requested) {
+                finishWeatherLocation(requestId);
+                return;
+            }
+            weatherHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    try {
-                        manager.removeUpdates(listener);
-                    } catch (SecurityException ignored) {
-                    }
-                    if (weatherView != null && weatherView.getText().toString().contains("取得中")) {
-                        Location lastLocation = getBestLastLocation();
-                        if (lastLocation != null) {
-                            fetchWeatherForLocation(lastLocation.getLatitude(), lastLocation.getLongitude());
-                        } else {
-                            fetchWeatherForLocation(FALLBACK_WEATHER_LATITUDE, FALLBACK_WEATHER_LONGITUDE);
-                        }
-                    }
+                    finishWeatherLocation(requestId);
                 }
-            }, 8000L);
+            }, WEATHER_LOCATION_TIMEOUT_MS);
         } catch (Exception ignored) {
-            fetchWeatherForLocation(FALLBACK_WEATHER_LATITUDE, FALLBACK_WEATHER_LONGITUDE);
+            finishWeatherLocation(requestId);
         }
     }
 
-    private void fetchWeatherForLocation(final double latitude, final double longitude) {
+    private void finishWeatherLocation(int requestId) {
+        if (requestId != weatherRequestId) {
+            return;
+        }
+        Location location = bestWeatherLocation;
+        cancelWeatherLocationRequest();
+        bestWeatherLocation = null;
+        weatherHandler.removeCallbacksAndMessages(null);
+        if (location == null) {
+            showWeatherStatus(requestId, "--℃ 位置情報なし");
+            return;
+        }
+        fetchWeatherForLocation(location.getLatitude(), location.getLongitude(), requestId);
+    }
+
+    private void cancelWeatherLocationRequest() {
+        if (weatherLocationManager != null && weatherLocationListener != null) {
+            try {
+                weatherLocationManager.removeUpdates(weatherLocationListener);
+            } catch (SecurityException ignored) {
+            }
+        }
+        weatherLocationManager = null;
+        weatherLocationListener = null;
+    }
+
+    private boolean isRecentWeatherLocation(Location location) {
+        if (location == null
+                || location.getLatitude() < -90
+                || location.getLatitude() > 90
+                || location.getLongitude() < -180
+                || location.getLongitude() > 180) {
+            return false;
+        }
+        long age = Math.abs(System.currentTimeMillis() - location.getTime());
+        return location.getTime() > 0 && age <= MAX_LAST_LOCATION_AGE_MS;
+    }
+
+    private boolean isBetterWeatherLocation(Location candidate, Location current) {
+        if (candidate == null) {
+            return false;
+        }
+        if (current == null) {
+            return true;
+        }
+        long timeDifference = candidate.getTime() - current.getTime();
+        if (timeDifference > 2L * 60L * 1000L) {
+            return true;
+        }
+        if (timeDifference < -2L * 60L * 1000L) {
+            return false;
+        }
+        float candidateAccuracy = candidate.hasAccuracy() ? candidate.getAccuracy() : Float.MAX_VALUE;
+        float currentAccuracy = current.hasAccuracy() ? current.getAccuracy() : Float.MAX_VALUE;
+        return candidateAccuracy < currentAccuracy;
+    }
+
+    private void showWeatherStatus(int requestId, String text) {
+        if (requestId == weatherRequestId
+                && "まいにちサポート".equals(currentScreenTitle)
+                && weatherView != null) {
+            weatherView.setText(text);
+        }
+    }
+
+    private void fetchWeatherForLocation(
+            final double latitude,
+            final double longitude,
+            final int requestId
+    ) {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                String result = "--℃ 天気";
+                String result = "--℃ 取得失敗";
                 HttpURLConnection connection = null;
                 try {
                     URL url = new URL(String.format(Locale.US,
-                            "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,weather_code,precipitation,rain,showers&timezone=auto",
+                            "https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f&current=temperature_2m,weather_code,precipitation,rain,showers,snowfall&timezone=auto&timeformat=unixtime&forecast_days=1",
                             latitude,
                             longitude));
                     connection = (HttpURLConnection) url.openConnection();
                     connection.setConnectTimeout(5000);
                     connection.setReadTimeout(5000);
                     connection.setRequestMethod("GET");
+                    connection.setRequestProperty("Accept", "application/json");
+                    if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                        throw new IllegalStateException("Weather request failed");
+                    }
                     BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
                     StringBuilder builder = new StringBuilder();
                     String line;
@@ -552,15 +670,22 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     reader.close();
                     JSONObject rootObject = new JSONObject(builder.toString());
                     JSONObject current = rootObject.getJSONObject("current");
+                    long weatherTimeMillis = current.getLong("time") * 1000L;
+                    if (Math.abs(System.currentTimeMillis() - weatherTimeMillis) > 3L * 60L * 60L * 1000L) {
+                        throw new IllegalStateException("Weather data is stale");
+                    }
                     int temperature = (int) Math.round(current.getDouble("temperature_2m"));
                     int code = current.getInt("weather_code");
                     double precipitation = current.optDouble("precipitation", 0);
                     double rain = current.optDouble("rain", 0);
                     double showers = current.optDouble("showers", 0);
-                    boolean raining = precipitation > 0 || rain > 0 || showers > 0 || isRainCode(code);
-                    result = temperature + "℃ " + simpleWeatherName(code, raining) + " / " + weatherAdvice(temperature, code, raining);
+                    double snowfall = current.optDouble("snowfall", 0);
+                    boolean snowing = snowfall > 0 || isSnowCode(code);
+                    boolean raining = !snowing
+                            && (precipitation > 0 || rain > 0 || showers > 0 || isRainCode(code));
+                    result = temperature + "℃ " + simpleWeatherName(code, raining, snowing);
                 } catch (Exception ignored) {
-                    result = "--℃ 天気";
+                    result = "--℃ 取得失敗";
                 } finally {
                     if (connection != null) {
                         connection.disconnect();
@@ -570,16 +695,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if (weatherView != null) {
-                            weatherView.setText(weatherText);
-                        }
+                        showWeatherStatus(requestId, weatherText);
                     }
                 });
             }
         }).start();
     }
 
-    private String simpleWeatherName(int code, boolean raining) {
+    private String simpleWeatherName(int code, boolean raining, boolean snowing) {
+        if (snowing) {
+            return "雪";
+        }
         if (raining) {
             return "雨";
         }
@@ -589,7 +715,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         if (code == 2 || code == 3 || code == 45 || code == 48) {
             return "曇り";
         }
-        return "雨";
+        return "天気不明";
     }
 
     private boolean isRainCode(int code) {
@@ -598,17 +724,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 || (code >= 95 && code <= 99);
     }
 
-    private String weatherAdvice(int temperature, int code, boolean raining) {
-        if (raining) {
-            return "傘を忘れずに";
-        }
-        if (temperature >= 28) {
-            return "水分補給";
-        }
-        if (temperature <= 8) {
-            return "暖かくして外出";
-        }
-        return "無理なく外出";
+    private boolean isSnowCode(int code) {
+        return (code >= 71 && code <= 77)
+                || code == 85
+                || code == 86;
     }
 
     private void addStepCounterPanel() {
