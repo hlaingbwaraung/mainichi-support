@@ -40,6 +40,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -84,6 +85,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final String KEY_PREMIUM_PLAN = "premium_plan";
     private static final String KEY_REAL_BILLING_MIGRATED = "real_billing_migrated";
     private static final String KEY_TEXT_SCALE = "text_scale";
+    private static final String KEY_BOLD_TEXT = "bold_text";
     private static final String KEY_ONBOARDING_DONE = "onboarding_done";
     private static final long WEATHER_LOCATION_TIMEOUT_MS = 6000L;
     private static final long MAX_LAST_LOCATION_AGE_MS = 30L * 60L * 1000L;
@@ -1103,6 +1105,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         });
 
         dialog.show();
+        applyGlobalBold(dialog);
         input.requestFocus();
         showKeyboard(input);
     }
@@ -1397,6 +1400,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             });
         });
         dialog.show();
+        applyGlobalBold(dialog);
         nameInput.requestFocus();
         showKeyboard(nameInput);
     }
@@ -1597,6 +1601,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             });
         });
         dialog.show();
+        applyGlobalBold(dialog);
         nameInput.requestFocus();
         showKeyboard(nameInput);
     }
@@ -1635,6 +1640,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             });
         });
         dialog.show();
+        applyGlobalBold(dialog);
         input.requestFocus();
         showKeyboard(input);
     }
@@ -1798,6 +1804,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         });
         dialog.show();
+        applyGlobalBold(dialog);
     }
 
     private Button dialogActionButton(String label, int color) {
@@ -2061,7 +2068,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showSettings() {
-        beginScreen("設定", "文字サイズとバックアップ");
+        beginScreen("設定", "文字の見やすさとバックアップ");
         root.addView(backButton());
 
         LinearLayout sizePanel = card();
@@ -2075,6 +2082,18 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         sizeRow.addView(settingSizeButton("特大", 1.18f), middle);
         sizeRow.addView(settingSizeButton("最大", 1.32f), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         sizePanel.addView(sizeRow, matchWrap());
+
+        sizePanel.addView(sectionTitle("文字の太さ"));
+        sizePanel.addView(bodyText("すべての文字を太くできます。"));
+        LinearLayout boldRow = new LinearLayout(this);
+        boldRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button standardText = settingBoldButton("標準", false);
+        Button boldText = settingBoldButton("すべて太字", true);
+        boldRow.addView(standardText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams boldParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        boldParams.setMargins(dp(8), 0, 0, 0);
+        boldRow.addView(boldText, boldParams);
+        sizePanel.addView(boldRow, matchWrap());
         root.addView(sizePanel);
 
         LinearLayout backupPanel = card();
@@ -2326,6 +2345,25 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return button;
     }
 
+    private Button settingBoldButton(String label, final boolean enabled) {
+        Button button = smallButton(label, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                prefs().edit().putBoolean(KEY_BOLD_TEXT, enabled).apply();
+                Toast.makeText(
+                        MainActivity.this,
+                        enabled ? "すべての文字を太字にしました" : "文字の太さを標準にしました",
+                        Toast.LENGTH_SHORT
+                ).show();
+                showSettings();
+            }
+        });
+        if (isBoldTextEnabled() == enabled) {
+            button.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
+        }
+        return button;
+    }
+
     private void beginScreen(String title, String subtitle) {
         currentScreenTitle = title;
         FrameLayout screen = new FrameLayout(this);
@@ -2341,7 +2379,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         scrollView.setPadding(0, getStatusBarHeight(), 0, 0);
         scrollView.setClipToPadding(true);
 
-        root = new LinearLayout(this);
+        root = new BoldAwareLinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18), dp(18), dp(18), dp(32));
         root.setBackgroundColor(Color.TRANSPARENT);
@@ -2595,6 +2633,31 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private float textScale() {
         return prefs().getFloat(KEY_TEXT_SCALE, 1.0f);
+    }
+
+    private boolean isBoldTextEnabled() {
+        return prefs().getBoolean(KEY_BOLD_TEXT, false);
+    }
+
+    private void applyGlobalBold(View view) {
+        if (!isBoldTextEnabled() || view == null) {
+            return;
+        }
+        if (view instanceof TextView) {
+            ((TextView) view).setTypeface(Typeface.DEFAULT_BOLD);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                applyGlobalBold(group.getChildAt(i));
+            }
+        }
+    }
+
+    private void applyGlobalBold(AlertDialog dialog) {
+        if (dialog != null && dialog.getWindow() != null) {
+            applyGlobalBold(dialog.getWindow().getDecorView());
+        }
     }
 
     private float scaledTextSize(float baseSize) {
@@ -3358,6 +3421,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
         });
         dialog.show();
+        applyGlobalBold(dialog);
     }
 
     private void addAdBanner() {
@@ -3441,6 +3505,18 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         FamilyContact(String name, String phone) {
             this.name = name;
             this.phone = phone;
+        }
+    }
+
+    private class BoldAwareLinearLayout extends LinearLayout {
+        BoldAwareLinearLayout(Context context) {
+            super(context);
+        }
+
+        @Override
+        public void onViewAdded(View child) {
+            super.onViewAdded(child);
+            applyGlobalBold(child);
         }
     }
 
