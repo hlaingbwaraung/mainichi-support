@@ -38,6 +38,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -110,6 +111,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private Sensor stepCounterSensor;
     private TextView stepCountView;
     private TextView stepSensorStatusView;
+    private TextView stepGraphSelectionView;
     private StepGraphView stepGraphView;
     private TextView weatherView;
     private final Handler promptHandler = new Handler(Looper.getMainLooper());
@@ -123,6 +125,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private PlayBillingManager billingManager;
     private int stepsToday = 0;
     private int selectedStepDayOffset = 0;
+    private int selectedStepGraphIndex = 6;
     private int draftEventHour = -1;
     private int draftEventMinute = -1;
     private int draftMedicineHour = -1;
@@ -768,15 +771,36 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         stepSensorStatusView = bodyText(stepCounterMessage());
         panel.addView(stepSensorStatusView);
 
-        TextView graphTitle = bodyText("7日間の歩数");
+        TextView graphTitle = bodyText("最近7日間の歩数（日別）");
         graphTitle.setTypeface(Typeface.DEFAULT_BOLD);
         panel.addView(graphTitle);
 
+        stepGraphSelectionView = bodyText(formatWeeklyStepSelection(
+                selectedStepGraphIndex,
+                getWeeklySteps()[selectedStepGraphIndex]
+        ));
+        stepGraphSelectionView.setTextSize(scaledTextSize(24));
+        stepGraphSelectionView.setTypeface(Typeface.DEFAULT_BOLD);
+        stepGraphSelectionView.setGravity(Gravity.CENTER);
+        stepGraphSelectionView.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
+        stepGraphSelectionView.setPadding(dp(10), dp(10), dp(10), dp(10));
+        panel.addView(stepGraphSelectionView, matchWrapWithBottom(8));
+
         stepGraphView = new StepGraphView(this);
         stepGraphView.setSteps(getWeeklySteps());
+        stepGraphView.setSelectedIndex(selectedStepGraphIndex);
+        stepGraphView.setOnDaySelectedListener(new OnStepGraphDaySelectedListener() {
+            @Override
+            public void onDaySelected(int index, int steps) {
+                selectedStepGraphIndex = index;
+                if (stepGraphSelectionView != null) {
+                    stepGraphSelectionView.setText(formatWeeklyStepSelection(index, steps));
+                }
+            }
+        });
         panel.addView(stepGraphView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(170)
+                dp(210)
         ));
 
         root.addView(panel);
@@ -802,7 +826,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             stepSensorStatusView.setText(stepCounterMessage());
         }
         if (stepGraphView != null) {
-            stepGraphView.setSteps(getWeeklySteps());
+            int[] weeklySteps = getWeeklySteps();
+            stepGraphView.setSteps(weeklySteps);
+            if (stepGraphSelectionView != null) {
+                stepGraphSelectionView.setText(formatWeeklyStepSelection(
+                        selectedStepGraphIndex,
+                        weeklySteps[selectedStepGraphIndex]
+                ));
+            }
         }
     }
 
@@ -980,6 +1011,20 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             calendar.add(Calendar.DAY_OF_YEAR, 1);
         }
         return values;
+    }
+
+    private String formatWeeklyStepSelection(int index, int steps) {
+        Calendar calendar = Calendar.getInstance(Locale.JAPAN);
+        calendar.add(Calendar.DAY_OF_YEAR, index - 6);
+        String[] weekdays = {"日", "月", "火", "水", "木", "金", "土"};
+        return String.format(
+                Locale.JAPAN,
+                "%d月%d日（%s） %,d歩",
+                calendar.get(Calendar.MONTH) + 1,
+                calendar.get(Calendar.DAY_OF_MONTH),
+                weekdays[calendar.get(Calendar.DAY_OF_WEEK) - 1],
+                steps
+        );
     }
 
     private void showNotes() {
@@ -3399,18 +3444,63 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
     }
 
+    private interface OnStepGraphDaySelectedListener {
+        void onDaySelected(int index, int steps);
+    }
+
     private class StepGraphView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final String[] labels = {"月", "火", "水", "木", "金", "土", "日"};
         private int[] steps = new int[7];
+        private int selectedIndex = 6;
+        private OnStepGraphDaySelectedListener onDaySelectedListener;
 
         StepGraphView(Context context) {
             super(context);
+            setClickable(true);
+            setContentDescription("最近7日間の日別歩数グラフ");
         }
 
         void setSteps(int[] values) {
             steps = values;
             invalidate();
+        }
+
+        void setSelectedIndex(int index) {
+            selectedIndex = Math.max(0, Math.min(steps.length - 1, index));
+            invalidate();
+        }
+
+        void setOnDaySelectedListener(OnStepGraphDaySelectedListener listener) {
+            onDaySelectedListener = listener;
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (event.getAction() != MotionEvent.ACTION_UP) {
+                return true;
+            }
+            int left = dp(8);
+            int right = getWidth() - dp(8);
+            if (event.getX() < left || event.getX() > right) {
+                return true;
+            }
+            float segmentWidth = (right - left) / (float) steps.length;
+            int index = (int) ((event.getX() - left) / segmentWidth);
+            selectedIndex = Math.max(0, Math.min(steps.length - 1, index));
+            setContentDescription(formatWeeklyStepSelection(selectedIndex, steps[selectedIndex]));
+            invalidate();
+            performClick();
+            if (onDaySelectedListener != null) {
+                onDaySelectedListener.onDaySelected(selectedIndex, steps[selectedIndex]);
+            }
+            return true;
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
+            return true;
         }
 
         @Override
@@ -3421,7 +3511,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             int left = dp(8);
             int right = width - dp(8);
             int top = dp(8);
-            int bottom = height - dp(30);
+            int bottom = height - dp(54);
             int chartHeight = bottom - top;
             int max = 1;
             for (int value : steps) {
@@ -3432,25 +3522,35 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             paint.setColor(COLOR_LINE);
             canvas.drawLine(left, bottom, right, bottom, paint);
 
-            float gap = dp(8);
-            float barWidth = (right - left - gap * (steps.length - 1)) / steps.length;
+            float segmentWidth = (right - left) / (float) steps.length;
+            float gap = dp(6);
+            float barWidth = segmentWidth - gap;
             Calendar calendar = Calendar.getInstance(Locale.JAPAN);
             calendar.add(Calendar.DAY_OF_YEAR, -6);
             for (int i = 0; i < steps.length; i++) {
-                float x = left + i * (barWidth + gap);
+                float x = left + i * segmentWidth + gap / 2f;
                 float ratio = steps[i] / (float) max;
                 float barTop = bottom - Math.max(dp(8), chartHeight * ratio);
-                paint.setColor(i == steps.length - 1 ? COLOR_ACCENT : COLOR_PRIMARY);
+                paint.setColor(i == selectedIndex ? COLOR_ACCENT : COLOR_PRIMARY);
                 RectF bar = new RectF(x, barTop, x + barWidth, bottom);
                 canvas.drawRoundRect(bar, dp(4), dp(4), paint);
 
-                paint.setColor(COLOR_MUTED);
+                paint.setColor(i == selectedIndex ? COLOR_TEXT : COLOR_MUTED);
                 paint.setTextAlign(Paint.Align.CENTER);
-                paint.setTextSize(dp(13));
+                paint.setTypeface(i == selectedIndex ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+                paint.setTextSize(dp(12));
+                float centerX = x + barWidth / 2;
+                canvas.drawText(
+                        (calendar.get(Calendar.MONTH) + 1) + "/" + calendar.get(Calendar.DAY_OF_MONTH),
+                        centerX,
+                        height - dp(26),
+                        paint
+                );
                 int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-                canvas.drawText(labels[(dayOfWeek + 5) % 7], x + barWidth / 2, height - dp(8), paint);
+                canvas.drawText(labels[(dayOfWeek + 5) % 7], centerX, height - dp(7), paint);
                 calendar.add(Calendar.DAY_OF_YEAR, 1);
             }
+            paint.setTypeface(Typeface.DEFAULT);
         }
     }
 

@@ -7,7 +7,7 @@ Android app for older users with large buttons, simple Japanese UI, and daily su
 - Home screen with compact date, weather, and today summary.
 - Weather uses a recent phone location from GPS/network and shows only temperature plus current conditions.
 - Weather never silently falls back to a fixed city when the current location is unavailable.
-- Step counter with 7-day graph.
+- Step counter with a tappable 7-day daily graph showing the selected date and step count.
 - Notes with large text input.
 - Schedule alarms with date/time controls and notification sound.
 - Medicine alarms with daily confirmation.
