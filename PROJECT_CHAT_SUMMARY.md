@@ -38,6 +38,7 @@ Android app for older users with large buttons, simple Japanese UI, and daily su
   - Text size selection.
   - Emergency contact registration.
   - Medicine time registration.
+  - Medicine names use one-line input; keyboard Next closes the keyboard and moves to the time controls.
 - Text-to-speech for today's summary.
 - Family share button for today's summary.
 - Backup share/copy from settings.

@@ -16,6 +16,7 @@ import android.content.ClipboardManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -27,15 +28,18 @@ import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.speech.tts.TextToSpeech;
-import android.text.TextUtils;
 import android.net.Uri;
+import android.speech.tts.TextToSpeech;
+import android.text.InputType;
+import android.text.TextUtils;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.DatePicker;
@@ -100,6 +104,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static final int COLOR_SHOPPING = Color.rgb(48, 91, 124);
 
     private LinearLayout root;
+    private ScrollView currentScrollView;
     private SensorManager sensorManager;
     private Sensor stepCounterSensor;
     private TextView stepCountView;
@@ -1014,17 +1019,43 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         final EditText input = new EditText(this);
         input.setTextSize(24);
         input.setHint("例：朝の薬");
+        input.setSingleLine(true);
+        input.setMaxLines(1);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        input.setImeOptions(EditorInfo.IME_ACTION_NEXT);
         input.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
         input.setPadding(dp(14), dp(10), dp(14), dp(10));
         panel.addView(input, matchWrap());
 
-        panel.addView(sectionTitle("時間"));
         prepareDraftMedicineTime();
 
         LinearLayout timePanel = new LinearLayout(this);
         timePanel.setOrientation(LinearLayout.VERTICAL);
         timePanel.setPadding(dp(10), dp(10), dp(10), dp(10));
         timePanel.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
+
+        input.setOnEditorActionListener((view, actionId, event) -> {
+            boolean enterPressed = event != null
+                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == KeyEvent.ACTION_DOWN;
+            if (actionId == EditorInfo.IME_ACTION_NEXT
+                    || actionId == EditorInfo.IME_ACTION_DONE
+                    || enterPressed) {
+                moveFromKeyboardToSection(input, timePanel);
+                return true;
+            }
+            return false;
+        });
+        Button moveToTimeButton = smallButton("次へ：時間を選ぶ", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                moveFromKeyboardToSection(input, timePanel);
+            }
+        });
+        moveToTimeButton.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
+        panel.addView(moveToTimeButton);
+
+        panel.addView(sectionTitle("時間"));
         panel.addView(timePanel, matchWrap());
 
         final TextView timeDisplay = bodyText("");
@@ -1992,6 +2023,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         final EditText medicineInput = new EditText(this);
         medicineInput.setTextSize(scaledTextSize(24));
         medicineInput.setHint("例：朝の薬");
+        medicineInput.setSingleLine(true);
+        medicineInput.setMaxLines(1);
+        medicineInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        medicineInput.setImeOptions(EditorInfo.IME_ACTION_NEXT);
         medicineInput.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
         medicineInput.setPadding(dp(14), dp(10), dp(14), dp(10));
         panel.addView(medicineInput, matchWrap());
@@ -2001,6 +2036,28 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         timePanel.setOrientation(LinearLayout.VERTICAL);
         timePanel.setPadding(dp(10), dp(10), dp(10), dp(10));
         timePanel.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
+
+        medicineInput.setOnEditorActionListener((view, actionId, event) -> {
+            boolean enterPressed = event != null
+                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                    && event.getAction() == KeyEvent.ACTION_DOWN;
+            if (actionId == EditorInfo.IME_ACTION_NEXT
+                    || actionId == EditorInfo.IME_ACTION_DONE
+                    || enterPressed) {
+                moveFromKeyboardToSection(medicineInput, timePanel);
+                return true;
+            }
+            return false;
+        });
+        Button moveToTimeButton = smallButton("次へ：時間を選ぶ", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                moveFromKeyboardToSection(medicineInput, timePanel);
+            }
+        });
+        moveToTimeButton.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
+        panel.addView(moveToTimeButton);
+
         panel.addView(timePanel, matchWrap());
 
         final TextView timeDisplay = bodyText("");
@@ -2110,7 +2167,8 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        ScrollView scrollView = new ScrollView(this);
+        currentScrollView = new ScrollView(this);
+        ScrollView scrollView = currentScrollView;
         scrollView.setFillViewport(true);
         scrollView.setBackgroundColor(Color.TRANSPARENT);
         scrollView.setPadding(0, getStatusBarHeight(), 0, 0);
@@ -3042,6 +3100,27 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         if (manager != null) {
             manager.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
+    }
+
+    private void moveFromKeyboardToSection(EditText input, View section) {
+        input.clearFocus();
+        hideKeyboard(input);
+        section.setFocusableInTouchMode(true);
+        section.requestFocus();
+        ScrollView scrollView = currentScrollView;
+        LinearLayout screenRoot = root;
+        if (scrollView == null || screenRoot == null) {
+            return;
+        }
+        scrollView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Rect sectionBounds = new Rect();
+                section.getDrawingRect(sectionBounds);
+                screenRoot.offsetDescendantRectToMyCoords(section, sectionBounds);
+                scrollView.smoothScrollTo(0, Math.max(0, sectionBounds.top - dp(16)));
+            }
+        }, 250L);
     }
 
     private void showKeyboard(final View view) {
