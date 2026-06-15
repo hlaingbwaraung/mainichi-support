@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 42 33% 98%;
+    --foreground: 210 8% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 210 8% 13%;
+    --primary: 184 42% 26%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 42 28% 92%;
+    --secondary-foreground: 210 8% 17%;
+    --muted: 40 22% 94%;
+    --muted-foreground: 28 7% 40%;
+    --accent: 40 34% 90%;
+    --accent-foreground: 210 8% 16%;
+    --destructive: 5 55% 38%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 38 20% 84%;
+    --input: 38 20% 80%;
+    --ring: 184 42% 35%;
+  }
+
+  .dark {
+    --background: 200 10% 9%;
+    --foreground: 40 18% 94%;
+    --card: 200 9% 12%;
+    --card-foreground: 40 18% 94%;
+    --primary: 42 45% 58%;
+    --primary-foreground: 200 10% 10%;
+    --secondary: 200 7% 18%;
+    --secondary-foreground: 40 18% 94%;
+    --muted: 200 7% 16%;
+    --muted-foreground: 35 10% 67%;
+    --accent: 185 18% 18%;
+    --accent-foreground: 40 18% 94%;
+    --destructive: 4 50% 43%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 7% 23%;
+    --input: 200 7% 27%;
+    --ring: 42 45% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-feature-settings: "palt";
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    letter-spacing: 0;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .metric-grid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+}

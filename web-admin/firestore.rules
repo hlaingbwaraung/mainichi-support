@@ -1,0 +1,116 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function adminData() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && adminData().active == true
+        && adminData().role in ['owner', 'admin', 'viewer'];
+    }
+
+    function isOperator() {
+      return isAdmin() && adminData().role in ['owner', 'admin'];
+    }
+
+    function isOwner() {
+      return isAdmin() && adminData().role == 'owner';
+    }
+
+    match /users/{userId} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == userId);
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'displayName',
+          'email',
+          'phone',
+          'plan',
+          'premium',
+          'disabled',
+          'appVersion',
+          'platform',
+          'createdAt',
+          'lastActiveAt',
+          'stepCountToday',
+          'familyContactCount'
+        ])
+        && request.resource.data.premium == false
+        && request.resource.data.plan == 'free'
+        && request.resource.data.disabled == false;
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName',
+          'phone',
+          'lastActiveAt',
+          'appVersion',
+          'stepCountToday',
+          'familyContactCount'
+        ]);
+      allow delete: if false;
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /user_events/{eventId} {
+      allow read: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.feature in [
+          'steps',
+          'notes',
+          'schedule',
+          'medicine',
+          'todos',
+          'shopping',
+          'family'
+        ]
+        && request.resource.data.occurredAt == request.time
+        && request.resource.data.keys().hasOnly([
+          'userId',
+          'feature',
+          'eventName',
+          'occurredAt',
+          'appVersion'
+        ]);
+      allow update, delete: if false;
+    }
+
+    match /feature_usage/{featureId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /feature_usage_daily/{dateId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /app_settings/{settingId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
