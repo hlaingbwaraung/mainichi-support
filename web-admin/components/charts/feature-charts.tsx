@@ -20,7 +20,12 @@ const colors = ["#2f7779", "#b08939", "#4f6b43", "#8b4b43", "#6f5b87"];
 export function FeatureRankingChart({ data }: { data: FeatureUsage[] }) {
   return (
     <div className="h-[360px]">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minWidth={0}
+        initialDimension={{ width: 320, height: 360 }}
+      >
         <BarChart data={data} margin={{ left: -10, right: 12 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.25} />
           <XAxis dataKey="label" axisLine={false} tickLine={false} fontSize={12} />
@@ -50,7 +55,12 @@ export function FeatureTrendChart({ data }: { data: FeatureDailyMetric[] }) {
 
   return (
     <div className="h-[360px]">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minWidth={0}
+        initialDimension={{ width: 320, height: 360 }}
+      >
         <LineChart data={chartData} margin={{ left: -12, right: 12 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.25} />
           <XAxis dataKey="date" axisLine={false} tickLine={false} fontSize={12} />

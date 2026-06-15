@@ -28,7 +28,12 @@ const tooltipStyle = {
 export function UserGrowthChart({ data }: { data: DailyMetric[] }) {
   return (
     <div className="h-[310px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minWidth={0}
+        initialDimension={{ width: 320, height: 310 }}
+      >
         <AreaChart data={data} margin={{ left: -20, right: 8, top: 10 }}>
           <defs>
             <linearGradient id="usersFill" x1="0" y1="0" x2="0" y2="1">
@@ -66,7 +71,12 @@ export function UserGrowthChart({ data }: { data: DailyMetric[] }) {
 export function FeatureUsageChart({ data }: { data: FeatureUsage[] }) {
   return (
     <div className="h-[310px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minWidth={0}
+        initialDimension={{ width: 320, height: 310 }}
+      >
         <BarChart
           data={data.slice(0, 7)}
           layout="vertical"
@@ -103,7 +113,12 @@ export function PlanMixChart({
   ];
   return (
     <div className="h-[230px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minWidth={0}
+        initialDimension={{ width: 280, height: 230 }}
+      >
         <PieChart>
           <Pie
             data={data}
