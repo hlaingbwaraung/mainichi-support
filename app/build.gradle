@@ -2,25 +2,24 @@ plugins {
     id "com.android.application"
 }
 
+def appIdOverride = project.findProperty("applicationIdOverride")
+def versionCodeOverride = project.findProperty("versionCodeOverride")
+def versionNameOverride = project.findProperty("versionNameOverride")
+
 android {
-    namespace "com.example.seniorhelper"
-    compileSdk 35
+    namespace = "com.example.seniorhelper"
+    compileSdk = 35
 
     defaultConfig {
-        applicationId "com.example.seniorhelper"
-        minSdk 23
-        targetSdk 35
-        versionCode 13
-        versionName "2.2"
+        applicationId = appIdOverride != null ? appIdOverride.toString() : "com.example.seniorhelper"
+        minSdk = 23
+        targetSdk = 35
+        versionCode = (versionCodeOverride != null ? versionCodeOverride.toString() : "1").toInteger()
+        versionName = versionNameOverride != null ? versionNameOverride.toString() : "1.0"
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-}
-
-dependencies {
-    implementation platform("org.jetbrains.kotlin:kotlin-bom:1.8.22")
-    implementation "com.android.billingclient:billing:9.0.0"
 }

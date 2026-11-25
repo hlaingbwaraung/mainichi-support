@@ -1,19 +1,39 @@
 # まいにちサポート
 
+## Local Project Upload
+
+This branch contains the local Android project uploaded on 2026-11-25.
+The home screen uses two columns with larger buttons. Premium purchasing is
+currently unavailable in this local version; Google Play Billing and real ads
+are not connected. The repository's default branch has separate billing work.
+
+Open the project in Android Studio with Android SDK 35 installed. This snapshot
+does not include a Gradle wrapper; use an installed Gradle and JDK compatible
+with Android Gradle Plugin 8.7.3, or configure them in Android Studio.
+Machine-specific SDK/JDK paths, build caches, APKs, and temporary UI captures
+are excluded from this source upload.
+
+```sh
+gradle assembleDebug
+```
+
+APK output: `app/build/outputs/apk/debug/app-debug.apk`.
+
 まいにちサポートは、70歳以上の方にも使いやすいシンプルなAndroidアプリです。大きな文字、見やすい配色、大きなボタンを使っています。
 
 ## 機能
 
 - 歩数計: スマートフォンの歩数センサーで今日の歩数と7日間の歩数グラフを表示します。
+- 歩行アラーム: 分数を選んで、通知と振動でお知らせします。
 - メモ: 端末にかんたんなメモを保存できます。
 - 予定: 端末に予定のお知らせを保存できます。
-- プレミアム会員: 月額500円、または3,000円の買い切りで広告を非表示にします。
-- 大きな文字とボタンのシンプルなホーム画面。
+- プレミアム会員: 月額300円で広告を非表示にします。起動5秒後におすすめ画面を表示します。
+- 大きなボタン3つのシンプルなホーム画面。
 
 ## 課金と広告
 
-Google Play Billing Library 9を使い、購入、購入復元、購入確認、定期購入管理への移動を実装しています。
-Play Console側の設定は `PLAY_BILLING_SETUP.md` を参照してください。
+現在のコードには、プレミアム画面、5秒後のおすすめ表示、広告の表示/非表示制御を入れています。
+実際にGoogle Playで月額300円の課金を行うには、Play Consoleで定期購入の商品IDを作成し、Google Play Billingを接続してください。
 実際にGoogle広告を配信するには、AdMobのアプリIDと広告ユニットIDを追加してください。
 
 ## 開き方
@@ -22,17 +42,4 @@ Play Console側の設定は `PLAY_BILLING_SETUP.md` を参照してください�
 2. Gradleの同期を待ちます。
 3. `app` をエミュレーターまたはAndroidスマートフォンで実行します。
 
-課金処理にはGoogle Play Billing Libraryを使用しています。
-
-## Web管理画面
-
-本番向けのNext.js管理画面は `web-admin/` にあります。
-
-```sh
-cd web-admin
-cp .env.example .env.local
-npm install
-npm run dev
-```
-
-Firebase設定、Cloud Functions、Firestoreルール、Google Play課金検証の手順は `web-admin/README.md` を参照してください。
+このプロジェクトはAndroid SDKのみを使い、外部ライブラリは使っていません。

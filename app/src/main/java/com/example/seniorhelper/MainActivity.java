@@ -4,9 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.AlertDialog;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
+import android.app.AppOpsManager;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -15,41 +14,36 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
-import android.graphics.Rect;
+import android.graphics.Path;
+import android.graphics.RadialGradient;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.net.Uri;
 import android.speech.tts.TextToSpeech;
-import android.text.InputType;
-import android.text.SpannableString;
-import android.text.Spanned;
-import android.text.TextUtils;
-import android.text.TextPaint;
-import android.text.method.LinkMovementMethod;
-import android.text.style.ClickableSpan;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
+import android.text.InputType;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
-import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
+import android.view.Window;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
-import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -61,90 +55,102 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity implements SensorEventListener, TextToSpeech.OnInitListener {
+    private enum Screen {
+        HOME,
+        STEP_COUNTER,
+        WALKING_ALARM,
+        NOTES,
+        CALENDAR,
+        EVENT_FORM,
+        MEDICINES,
+        MEDICINE_FORM,
+        EMERGENCY,
+        TODOS,
+        SHOPPING,
+        PREMIUM,
+        SETTINGS,
+        ONBOARDING_TEXT_SIZE,
+        ONBOARDING_EMERGENCY,
+        ONBOARDING_MEDICINE
+    }
+
     private static final String PREFS = "senior_helper_prefs";
+    private static final int REQUEST_ACTIVITY_RECOGNITION = 30;
+    private static final int REQUEST_NOTIFICATIONS = 32;
     private static final String KEY_NOTES = "notes";
     private static final String KEY_EVENTS = "events";
     private static final String KEY_MEDICINES = "medicines";
     private static final String KEY_TODOS = "todos";
     private static final String KEY_SHOPPING = "shopping";
-    private static final String KEY_FAMILY_CONTACTS = "family_contacts";
     private static final String KEY_EMERGENCY_NAME = "emergency_name";
     private static final String KEY_EMERGENCY_PHONE = "emergency_phone";
     private static final String KEY_STEP_BASE = "step_base";
     private static final String KEY_STEP_DATE = "step_date";
     private static final String KEY_STEP_HISTORY = "step_history";
+    private static final String KEY_WALKING_ALARM_ACTIVE = "walking_alarm_active";
+    private static final String KEY_WALKING_ALARM_TIME = "walking_alarm_time";
+    private static final String KEY_WALKING_ALARM_MINUTES = "walking_alarm_minutes";
     private static final String KEY_PREMIUM_ACTIVE = "premium_active";
-    private static final String KEY_PREMIUM_PLAN = "premium_plan";
-    private static final String KEY_MONTHLY_AUTO_RENEWING = "monthly_auto_renewing";
-    private static final String KEY_MONTHLY_PURCHASE_TIME = "monthly_purchase_time";
-    private static final String KEY_CANCELLATION_PENDING = "cancellation_pending";
-    private static final String KEY_CANCELLATION_REASON = "cancellation_reason";
-    private static final String KEY_REAL_BILLING_MIGRATED = "real_billing_migrated";
     private static final String KEY_TEXT_SCALE = "text_scale";
-    private static final String KEY_BOLD_TEXT = "bold_text";
     private static final String KEY_ONBOARDING_DONE = "onboarding_done";
-    private static final long WEATHER_LOCATION_TIMEOUT_MS = 6000L;
-    private static final long MAX_LAST_LOCATION_AGE_MS = 30L * 60L * 1000L;
-    private static final float GOOD_WEATHER_LOCATION_ACCURACY_METERS = 250f;
-    private static final int COLOR_BG = Color.rgb(250, 248, 243);
-    private static final int COLOR_CARD = Color.rgb(255, 255, 252);
-    private static final int COLOR_TEXT = Color.rgb(29, 30, 32);
-    private static final int COLOR_MUTED = Color.rgb(96, 93, 86);
-    private static final int COLOR_PRIMARY = Color.rgb(34, 36, 38);
-    private static final int COLOR_SECONDARY = Color.rgb(92, 88, 80);
-    private static final int COLOR_ACCENT = Color.rgb(176, 137, 57);
-    private static final int COLOR_LINE = Color.rgb(224, 215, 195);
-    private static final int COLOR_HOLIDAY = Color.rgb(166, 55, 48);
-    private static final int COLOR_STEPS = Color.rgb(39, 87, 94);
-    private static final int COLOR_NOTES = Color.rgb(98, 77, 126);
-    private static final int COLOR_SCHEDULE = Color.rgb(119, 74, 45);
-    private static final int COLOR_MEDICINE = Color.rgb(116, 59, 82);
-    private static final int COLOR_EMERGENCY = Color.rgb(139, 55, 45);
-    private static final int COLOR_TODO = Color.rgb(80, 94, 52);
-    private static final int COLOR_SHOPPING = Color.rgb(48, 91, 124);
+    private static final String KEY_NOTIFICATION_PERMISSION_ASKED = "notification_permission_asked";
+    private static final String KEY_ACTIVITY_PERMISSION_ASKED = "activity_permission_asked";
+    private static final String KEY_PREMIUM_PROMPT_LAST_SHOWN = "premium_prompt_last_shown";
+    private static final long PREMIUM_PROMPT_INTERVAL_MILLIS = 7L * 24L * 60L * 60L * 1000L;
+    private static final String APP_OP_SCHEDULE_EXACT_ALARM = "android:schedule_exact_alarm";
+    private static final String WALKING_ALARM_TITLE = "歩行アラーム";
+    private static final int COLOR_BG = Color.rgb(248, 248, 245);
+    private static final int COLOR_CARD = Color.rgb(255, 255, 255);
+    private static final int COLOR_SURFACE_TINT = Color.rgb(240, 243, 239);
+    private static final int COLOR_TEXT = Color.rgb(31, 43, 45);
+    private static final int COLOR_MUTED = Color.rgb(87, 101, 101);
+    private static final int COLOR_PRIMARY = Color.rgb(37, 91, 96);
+    private static final int COLOR_SECONDARY = Color.rgb(87, 101, 101);
+    private static final int COLOR_ACCENT = Color.rgb(166, 105, 28);
+    private static final int COLOR_LINE = Color.rgb(218, 225, 220);
+    private static final int COLOR_HOLIDAY = Color.rgb(179, 58, 48);
+    private static final int COLOR_STEPS = Color.rgb(39, 104, 108);
+    private static final int COLOR_NOTES = Color.rgb(100, 85, 124);
+    private static final int COLOR_SCHEDULE = Color.rgb(145, 86, 50);
+    private static final int COLOR_MEDICINE = Color.rgb(145, 72, 98);
+    private static final int COLOR_EMERGENCY = Color.rgb(168, 61, 52);
+    private static final int COLOR_TODO = Color.rgb(78, 104, 58);
+    private static final int COLOR_SHOPPING = Color.rgb(47, 101, 137);
 
     private LinearLayout root;
-    private ScrollView currentScrollView;
     private SensorManager sensorManager;
     private Sensor stepCounterSensor;
     private TextView stepCountView;
     private TextView stepSensorStatusView;
-    private TextView stepGraphSelectionView;
     private StepGraphView stepGraphView;
-    private TextView weatherView;
     private final Handler promptHandler = new Handler(Looper.getMainLooper());
-    private final Handler weatherHandler = new Handler(Looper.getMainLooper());
     private TextToSpeech textToSpeech;
     private boolean textToSpeechReady = false;
     private boolean premiumPromptScheduled = false;
     private boolean premiumPromptShown = false;
-    private boolean billingStateChecked = false;
-    private String currentScreenTitle = "";
-    private PlayBillingManager billingManager;
     private int stepsToday = 0;
-    private int selectedStepDayOffset = 0;
-    private int selectedStepGraphIndex = 6;
     private int draftEventHour = -1;
     private int draftEventMinute = -1;
+    private long draftEventDateMillis = -1L;
+    private String draftEventTitle = "";
     private int draftMedicineHour = -1;
     private int draftMedicineMinute = -1;
-    private LocationManager weatherLocationManager;
-    private LocationListener weatherLocationListener;
-    private Location bestWeatherLocation;
-    private int weatherRequestId = 0;
+    private String draftMedicineName = "";
+    private PendingReminderSave pendingReminderSave;
+    private Long pendingWalkingAlarmTimeMillis;
+    private int pendingWalkingAlarmMinutes = -1;
+    private Screen currentScreen = Screen.HOME;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -155,65 +161,8 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
         textToSpeech = new TextToSpeech(this, this);
         createEventAlarmChannel();
-        requestNeededPermissions();
+        clearExpiredWalkingAlarm();
         scheduleAllEventAlarms();
-        migrateFromTestPremium();
-        billingManager = new PlayBillingManager(this, new PlayBillingManager.Listener() {
-            @Override
-            public void onPremiumStatusChanged(PlayBillingManager.PremiumPlan plan, boolean firstCheck) {
-                boolean active = plan != PlayBillingManager.PremiumPlan.NONE;
-                boolean changed = isPremiumActive() != active;
-                prefs().edit()
-                        .putBoolean(KEY_PREMIUM_ACTIVE, active)
-                        .putString(KEY_PREMIUM_PLAN, plan.name())
-                        .apply();
-                billingStateChecked = true;
-                if ("プレミアム".equals(currentScreenTitle)) {
-                    showPremiumScreen();
-                } else if (changed && "まいにちサポート".equals(currentScreenTitle)) {
-                    showHome();
-                }
-                if (!active) {
-                    schedulePremiumPrompt();
-                }
-            }
-
-            @Override
-            public void onMonthlySubscriptionStateChanged(
-                    boolean active,
-                    boolean autoRenewing,
-                    long purchaseTimeMillis
-            ) {
-                SharedPreferences.Editor editor = prefs().edit()
-                        .putBoolean(KEY_MONTHLY_AUTO_RENEWING, active && autoRenewing);
-                if (active && purchaseTimeMillis > 0L) {
-                    editor.putLong(KEY_MONTHLY_PURCHASE_TIME, purchaseTimeMillis);
-                }
-                editor.apply();
-                if ((!active || !autoRenewing)
-                        && prefs().getBoolean(KEY_CANCELLATION_PENDING, false)) {
-                    prefs().edit().putBoolean(KEY_CANCELLATION_PENDING, false).apply();
-                    showSubscriptionCancellationComplete();
-                    return;
-                }
-                if ("プレミアム".equals(currentScreenTitle)) {
-                    showPremiumScreen();
-                }
-            }
-
-            @Override
-            public void onBillingProductChanged(boolean available) {
-                if ("プレミアム".equals(currentScreenTitle)) {
-                    showPremiumScreen();
-                }
-            }
-
-            @Override
-            public void onBillingMessage(String message) {
-                Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-            }
-        });
-        billingManager.start();
         if (isOnboardingDone()) {
             showHome();
         } else {
@@ -225,15 +174,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     protected void onResume() {
         super.onResume();
         registerStepSensor();
-        if ("まいにちサポート".equals(currentScreenTitle)
-                && weatherView != null
-                && weatherView.getText().toString().contains("取得中")) {
-            fetchWeather();
-        }
-        if (billingManager != null) {
-            billingManager.refreshPurchases(false);
-        }
-        schedulePremiumPrompt();
+        resumePendingAlarmSetup();
     }
 
     @Override
@@ -242,8 +183,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             sensorManager.unregisterListener(this);
         }
         promptHandler.removeCallbacksAndMessages(null);
-        weatherHandler.removeCallbacksAndMessages(null);
-        cancelWeatherLocationRequest();
         premiumPromptScheduled = false;
         super.onPause();
     }
@@ -254,10 +193,15 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             textToSpeech.stop();
             textToSpeech.shutdown();
         }
-        if (billingManager != null) {
-            billingManager.endConnection();
-        }
         super.onDestroy();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (navigateBackWithinApp()) {
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override
@@ -269,10 +213,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showHome() {
+        currentScreen = Screen.HOME;
         beginScreen("まいにちサポート", "今日");
         addTodayHeader();
         addTodaySummary();
-        root.addView(sectionTitle("使いたい機能を選んでください"));
+        root.addView(sectionTitle("使いたい機能"));
         LinearLayout featureGrid = new LinearLayout(this);
         featureGrid.setOrientation(LinearLayout.VERTICAL);
         featureGrid.setLayoutParams(matchWrap());
@@ -283,49 +228,62 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 showStepCounter();
             }
         }),
-                homeFeatureButton("メモ", "メモを開く", COLOR_NOTES, new View.OnClickListener() {
+                homeFeatureButton("歩行アラーム", "歩行アラームを開く", COLOR_ACCENT, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showWalkingAlarm();
+            }
+        }));
+        addHomeFeatureRow(featureGrid,
+                homeFeatureButton("メモ帳", "メモ帳を開く", COLOR_NOTES, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showNotes();
             }
-        }));
-        addHomeFeatureRow(featureGrid,
+        }),
                 homeFeatureButton("予定", "予定を開く", COLOR_SCHEDULE, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showCalendar();
             }
-        }),
+        }));
+        addHomeFeatureRow(featureGrid,
                 homeFeatureButton("薬アラーム", "薬アラームを開く", COLOR_MEDICINE, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showMedicines();
             }
-        }));
-        addHomeFeatureRow(featureGrid,
-                homeFeatureButton("家族", "家族連絡を開く", COLOR_EMERGENCY, new View.OnClickListener() {
+        }),
+                homeFeatureButton("緊急連絡", "緊急連絡を開く", COLOR_EMERGENCY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showEmergency();
             }
-        }),
+        }));
+        addHomeFeatureRow(featureGrid,
                 homeFeatureButton("今日やること", "今日やることを開く", COLOR_TODO, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showTodos();
             }
-        }));
-        addHomeFeatureRow(featureGrid,
+        }),
                 homeFeatureButton("買い物リスト", "買い物リストを開く", COLOR_SHOPPING, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showShopping();
             }
-        }),
+        }));
+        addHomeFeatureRow(featureGrid,
                 homeFeatureButton(isPremiumActive() ? "プレミアム会員" : "広告を消す", "プレミアム会員画面を開く", COLOR_PRIMARY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showPremiumScreen();
+            }
+        }),
+                homeFeatureButton("読み上げ", "今日の内容を読み上げ", COLOR_ACCENT, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                speakText(buildTodaySpeech());
             }
         }));
         addHomeFeatureRow(featureGrid,
@@ -335,67 +293,176 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 showSettings();
             }
         }),
-                homeFeatureButton("読み上げ", "今日の内容を読み上げ", COLOR_ACCENT, new View.OnClickListener() {
+                homeFeatureButton("家族へ共有", "家族へ今日の内容を共有", COLOR_PRIMARY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                speakText(buildTodaySpeech());
+                shareToFamily(buildTodaySpeech());
             }
         }));
         root.addView(featureGrid);
         addAdBanner();
+        root.post(new Runnable() {
+            @Override
+            public void run() {
+                schedulePremiumPrompt();
+            }
+        });
     }
 
     private void showStepCounter() {
+        currentScreen = Screen.STEP_COUNTER;
         beginScreen("歩数計", "今日の歩数を大きく表示");
         root.addView(backButton());
 
         addStepCounterPanel();
+        if (needsActivityRecognitionPermission()) {
+            root.addView(permissionCard(
+                    "歩数の許可",
+                    "歩数を自動で数えるには、このスマートフォンの歩数の許可が必要です。",
+                    activityPermissionActionLabel(),
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            handleActivityPermissionAction();
+                        }
+                    }
+            ));
+        }
+        addAdBanner();
+    }
+
+    private void showWalkingAlarm() {
+        currentScreen = Screen.WALKING_ALARM;
+        clearExpiredWalkingAlarm();
+        beginScreen("歩行アラーム", "歩く時間を音と振動でお知らせ");
+        root.addView(backButton());
+        if (!hasNotificationPermission()) {
+            root.addView(permissionCard(
+                    "通知の許可",
+                    "歩行アラームを音と振動でお知らせするには、通知の許可が必要です。",
+                    notificationPermissionActionLabel(),
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            handleNotificationPermissionAction();
+                        }
+                    }
+            ));
+        }
+        if (!hasExactAlarmAccess()) {
+            root.addView(permissionCard(
+                    "正確なアラーム",
+                    "15分後などの時刻どおりにお知らせするには、アラームの特別な許可が必要です。許可がないと数分以上遅れることがあります。",
+                    "設定を開く",
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            requestExactAlarmAccess();
+                        }
+                    }
+            ));
+        }
+
+        LinearLayout statusPanel = card();
+        statusPanel.addView(sectionTitle("いまの設定"));
+        if (hasActiveWalkingAlarm()) {
+            long timeMillis = walkingAlarmTimeMillis();
+            statusPanel.addView(bodyText("次のお知らせ: " + formatEventTime(timeMillis)));
+            int minutesLeft = Math.max(1, (int) Math.ceil((timeMillis - System.currentTimeMillis()) / 60000d));
+            statusPanel.addView(bodyText("あと " + minutesLeft + " 分です。"));
+            statusPanel.addView(smallButton("歩行アラームを止める", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    cancelWalkingAlarm();
+                    Toast.makeText(MainActivity.this, "歩行アラームを止めました", Toast.LENGTH_LONG).show();
+                    showWalkingAlarm();
+                }
+            }));
+        } else {
+            statusPanel.addView(bodyText("まだ歩行アラームはありません。"));
+            statusPanel.addView(compactBodyText("15分、30分、60分から選べます。"));
+        }
+        root.addView(statusPanel);
+
+        LinearLayout quickPanel = card();
+        quickPanel.addView(sectionTitle("すぐ設定"));
+        quickPanel.addView(bigButton("15分後", "15分後に歩行アラームを設定", COLOR_ACCENT, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startWalkingAlarmFlow(15);
+            }
+        }));
+        quickPanel.addView(bigButton("30分後", "30分後に歩行アラームを設定", COLOR_ACCENT, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startWalkingAlarmFlow(30);
+            }
+        }));
+        quickPanel.addView(bigButton("60分後", "60分後に歩行アラームを設定", COLOR_ACCENT, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startWalkingAlarmFlow(60);
+            }
+        }));
+        root.addView(quickPanel);
         addAdBanner();
     }
 
     private void addTodayHeader() {
         Calendar today = Calendar.getInstance(Locale.JAPAN);
         boolean holiday = isJapaneseHoliday(today);
+        boolean weekend = isWeekend(today);
         LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.HORIZONTAL);
-        panel.setGravity(Gravity.CENTER_VERTICAL);
-        panel.setPadding(dp(12), dp(8), dp(12), dp(8));
-        panel.setBackground(japaneseBox(holiday ? Color.rgb(255, 248, 246) : COLOR_CARD, 6, 1, holiday ? COLOR_HOLIDAY : COLOR_LINE));
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(Gravity.START);
+        panel.setPadding(dp(16), dp(12), dp(16), dp(12));
+        panel.setBackground(japaneseBox(COLOR_CARD, 16, 1, COLOR_LINE));
+        panel.setElevation(dp(1));
 
-        TextView date = bodyText(formatTodayHeader(today, holiday));
+        TextView date = bodyText("");
+        date.setText(formatTodayHeader(today, holiday));
         date.setTextSize(scaledTextSize(19));
         date.setTypeface(Typeface.DEFAULT_BOLD);
         date.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        date.setTextColor(holiday ? COLOR_HOLIDAY : COLOR_TEXT);
-        date.setPadding(0, 0, dp(8), 0);
-        panel.addView(date, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.35f));
+        date.setTextColor(COLOR_TEXT);
+        date.setPadding(0, 0, 0, 0);
+        panel.addView(date, matchWrapWithBottom(4));
 
-        weatherView = bodyText("--℃ 天気");
-        weatherView.setTextSize(scaledTextSize(18));
-        weatherView.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        weatherView.setTypeface(Typeface.DEFAULT_BOLD);
-        weatherView.setPadding(dp(8), 0, 0, 0);
-        weatherView.setContentDescription("現在地の天気。押すと更新");
-        weatherView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                fetchWeather();
-            }
-        });
-        panel.addView(weatherView, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView holidayStatus = bodyText(holiday ? "今日は祝日です。" : "今日は祝日ではありません。");
+        holidayStatus.setTextSize(scaledTextSize(18));
+        holidayStatus.setGravity(Gravity.START);
+        holidayStatus.setTypeface(Typeface.DEFAULT_BOLD);
+        holidayStatus.setTextColor(COLOR_TEXT);
+        holidayStatus.setMaxLines(3);
+        holidayStatus.setPadding(0, 0, 0, 0);
+        holidayStatus.setContentDescription(holidayStatus.getText());
+        panel.addView(holidayStatus, matchWrap());
 
         root.addView(panel, matchWrapWithBottom(10));
-        fetchWeather();
     }
 
-    private String formatTodayHeader(Calendar calendar, boolean holiday) {
+    private CharSequence formatTodayHeader(Calendar calendar, boolean holiday) {
         String[] weekdays = {"日", "月", "火", "水", "木", "金", "土"};
         int year = calendar.get(Calendar.YEAR);
         int month = calendar.get(Calendar.MONTH) + 1;
         int day = calendar.get(Calendar.DAY_OF_MONTH);
         String weekday = weekdays[calendar.get(Calendar.DAY_OF_WEEK) - 1];
-        String value = String.format(Locale.JAPAN, "%d年%d月%d日（%s）", year, month, day, weekday);
-        return holiday ? value + " 祝日" : value;
+        String dayLabel = weekday + (holiday ? "・祝" : "");
+        String value = String.format(Locale.JAPAN, "%d年%d月%d日（%s）", year, month, day, dayLabel);
+        SpannableString styled = new SpannableString(value);
+        if (holiday || isWeekend(calendar)) {
+            int open = value.indexOf("（");
+            int close = value.indexOf("）");
+            if (open >= 0 && close > open + 1) {
+                styled.setSpan(new ForegroundColorSpan(COLOR_HOLIDAY), open + 1, close, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+        return styled;
+    }
+
+    private boolean isWeekend(Calendar calendar) {
+        int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+        return dayOfWeek == Calendar.SATURDAY || dayOfWeek == Calendar.SUNDAY;
     }
 
     private void addTodaySummary() {
@@ -409,13 +476,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
         List<CalendarEvent> todayEvents = todayItems(loadEvents());
         List<CalendarEvent> todayMedicines = todayItems(loadTimedList(KEY_MEDICINES));
-        List<TodoItem> remainingTodos = remainingTodos();
+        List<TodoItem> todos = loadTodos();
+        int remainingTodos = 0;
+        for (TodoItem todo : todos) {
+            if (!todo.done) {
+                remainingTodos++;
+            }
+        }
 
         panel.addView(compactBodyText(todayEvents.isEmpty() ? "今日の予定: ありません" : "今日の予定: " + formatTodayItemList(todayEvents)));
         panel.addView(compactBodyText(todayMedicines.isEmpty() ? "今日の薬: ありません" : "今日の薬: " + formatTodayItemList(todayMedicines)));
-        panel.addView(compactBodyText(remainingTodos.isEmpty()
-                ? "今日やること: ありません"
-                : "今日やること:\n" + formatTodoDisplayList(remainingTodos)));
+        panel.addView(compactBodyText(remainingTodos == 0 ? "今日やること: ありません" : "今日やること: 残り " + remainingTodos + " 件"));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -435,11 +506,20 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         family.setMinHeight(dp(48));
         read.setTextSize(scaledTextSize(18));
         family.setTextSize(scaledTextSize(18));
-        row.addView(read, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams familyParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        familyParams.setMargins(dp(8), 0, 0, 0);
-        row.addView(family, familyParams);
-        panel.addView(row, matchWrap());
+        if (prefersSingleColumnLayout()) {
+            row.setOrientation(LinearLayout.VERTICAL);
+            read.setLayoutParams(matchWrapWithBottom(8));
+            family.setLayoutParams(matchWrap());
+            row.addView(read);
+            row.addView(family);
+            panel.addView(row, matchWrap());
+        } else {
+            row.addView(read, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            LinearLayout.LayoutParams familyParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            familyParams.setMargins(dp(8), 0, 0, 0);
+            row.addView(family, familyParams);
+            panel.addView(row, matchWrap());
+        }
         root.addView(panel);
     }
 
@@ -487,358 +567,47 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return builder.toString();
     }
 
-    private List<TodoItem> remainingTodos() {
-        List<TodoItem> remaining = new ArrayList<>();
-        for (TodoItem todo : loadTodos()) {
-            if (!todo.done && !todo.text.trim().isEmpty()) {
-                remaining.add(todo);
-            }
-        }
-        return remaining;
-    }
-
-    private String formatTodoDisplayList(List<TodoItem> todos) {
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < todos.size(); i++) {
-            if (i > 0) {
-                builder.append("\n");
-            }
-            builder.append("・").append(todos.get(i).text);
-        }
-        return builder.toString();
-    }
-
-    private void fetchWeather() {
-        if (weatherView == null) {
-            return;
-        }
-        final int requestId = ++weatherRequestId;
-        weatherHandler.removeCallbacksAndMessages(null);
-        cancelWeatherLocationRequest();
-        weatherView.setText("--℃ 取得中");
-        if (!hasLocationPermission()) {
-            weatherView.setText("--℃ 位置情報を許可");
-            return;
-        }
-        requestWeatherLocation(requestId);
-    }
-
-    private boolean hasLocationPermission() {
-        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private Location getBestRecentLocation() {
-        LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        if (manager == null || !hasLocationPermission()) {
-            return null;
-        }
-        Location best = null;
-        try {
-            List<String> providers = manager.getProviders(true);
-            for (String provider : providers) {
-                Location location = manager.getLastKnownLocation(provider);
-                if (isRecentWeatherLocation(location) && isBetterWeatherLocation(location, best)) {
-                    best = location;
-                }
-            }
-        } catch (SecurityException ignored) {
-            return null;
-        }
-        return best;
-    }
-
-    private void requestWeatherLocation(final int requestId) {
-        final LocationManager manager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        if (manager == null || !hasLocationPermission()) {
-            showWeatherStatus(requestId, "--℃ 位置情報なし");
-            return;
-        }
-        weatherLocationManager = manager;
-        bestWeatherLocation = getBestRecentLocation();
-        weatherLocationListener = new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                if (requestId != weatherRequestId
-                        || weatherLocationListener != this
-                        || !isRecentWeatherLocation(location)) {
-                    return;
-                }
-                if (isBetterWeatherLocation(location, bestWeatherLocation)) {
-                    bestWeatherLocation = location;
-                }
-                if (location.hasAccuracy()
-                        && location.getAccuracy() <= GOOD_WEATHER_LOCATION_ACCURACY_METERS) {
-                    finishWeatherLocation(requestId);
-                }
-            }
-        };
-        try {
-            boolean requested = false;
-            if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                manager.requestLocationUpdates(
-                        LocationManager.NETWORK_PROVIDER,
-                        0L,
-                        0f,
-                        weatherLocationListener,
-                        Looper.getMainLooper()
-                );
-                requested = true;
-            }
-            if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                manager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER,
-                        0L,
-                        0f,
-                        weatherLocationListener,
-                        Looper.getMainLooper()
-                );
-                requested = true;
-            }
-            if (!requested) {
-                finishWeatherLocation(requestId);
-                return;
-            }
-            weatherHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    finishWeatherLocation(requestId);
-                }
-            }, WEATHER_LOCATION_TIMEOUT_MS);
-        } catch (Exception ignored) {
-            finishWeatherLocation(requestId);
-        }
-    }
-
-    private void finishWeatherLocation(int requestId) {
-        if (requestId != weatherRequestId) {
-            return;
-        }
-        Location location = bestWeatherLocation;
-        cancelWeatherLocationRequest();
-        bestWeatherLocation = null;
-        weatherHandler.removeCallbacksAndMessages(null);
-        if (location == null) {
-            showWeatherStatus(requestId, "--℃ 位置情報なし");
-            return;
-        }
-        fetchWeatherForLocation(location.getLatitude(), location.getLongitude(), requestId);
-    }
-
-    private void cancelWeatherLocationRequest() {
-        if (weatherLocationManager != null && weatherLocationListener != null) {
-            try {
-                weatherLocationManager.removeUpdates(weatherLocationListener);
-            } catch (SecurityException ignored) {
-            }
-        }
-        weatherLocationManager = null;
-        weatherLocationListener = null;
-    }
-
-    private boolean isRecentWeatherLocation(Location location) {
-        if (location == null
-                || location.getLatitude() < -90
-                || location.getLatitude() > 90
-                || location.getLongitude() < -180
-                || location.getLongitude() > 180) {
-            return false;
-        }
-        long age = Math.abs(System.currentTimeMillis() - location.getTime());
-        return location.getTime() > 0 && age <= MAX_LAST_LOCATION_AGE_MS;
-    }
-
-    private boolean isBetterWeatherLocation(Location candidate, Location current) {
-        if (candidate == null) {
-            return false;
-        }
-        if (current == null) {
-            return true;
-        }
-        long timeDifference = candidate.getTime() - current.getTime();
-        if (timeDifference > 2L * 60L * 1000L) {
-            return true;
-        }
-        if (timeDifference < -2L * 60L * 1000L) {
-            return false;
-        }
-        float candidateAccuracy = candidate.hasAccuracy() ? candidate.getAccuracy() : Float.MAX_VALUE;
-        float currentAccuracy = current.hasAccuracy() ? current.getAccuracy() : Float.MAX_VALUE;
-        return candidateAccuracy < currentAccuracy;
-    }
-
-    private void showWeatherStatus(int requestId, String text) {
-        if (requestId == weatherRequestId
-                && "まいにちサポート".equals(currentScreenTitle)
-                && weatherView != null) {
-            weatherView.setText(text);
-        }
-    }
-
-    private void fetchWeatherForLocation(
-            final double latitude,
-            final double longitude,
-            final int requestId
-    ) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                String result = "--℃ 取得失敗";
-                HttpURLConnection connection = null;
-                try {
-                    URL url = new URL(String.format(Locale.US,
-                            "https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f&current=temperature_2m,weather_code,precipitation,rain,showers,snowfall&timezone=auto&timeformat=unixtime&forecast_days=1",
-                            latitude,
-                            longitude));
-                    connection = (HttpURLConnection) url.openConnection();
-                    connection.setConnectTimeout(5000);
-                    connection.setReadTimeout(5000);
-                    connection.setRequestMethod("GET");
-                    connection.setRequestProperty("Accept", "application/json");
-                    if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
-                        throw new IllegalStateException("Weather request failed");
-                    }
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                    StringBuilder builder = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        builder.append(line);
-                    }
-                    reader.close();
-                    JSONObject rootObject = new JSONObject(builder.toString());
-                    JSONObject current = rootObject.getJSONObject("current");
-                    long weatherTimeMillis = current.getLong("time") * 1000L;
-                    if (Math.abs(System.currentTimeMillis() - weatherTimeMillis) > 3L * 60L * 60L * 1000L) {
-                        throw new IllegalStateException("Weather data is stale");
-                    }
-                    int temperature = (int) Math.round(current.getDouble("temperature_2m"));
-                    int code = current.getInt("weather_code");
-                    double precipitation = current.optDouble("precipitation", 0);
-                    double rain = current.optDouble("rain", 0);
-                    double showers = current.optDouble("showers", 0);
-                    double snowfall = current.optDouble("snowfall", 0);
-                    boolean snowing = snowfall > 0 || isSnowCode(code);
-                    boolean raining = !snowing
-                            && (precipitation > 0 || rain > 0 || showers > 0 || isRainCode(code));
-                    result = temperature + "℃ " + simpleWeatherName(code, raining, snowing);
-                } catch (Exception ignored) {
-                    result = "--℃ 取得失敗";
-                } finally {
-                    if (connection != null) {
-                        connection.disconnect();
-                    }
-                }
-                final String weatherText = result;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        showWeatherStatus(requestId, weatherText);
-                    }
-                });
-            }
-        }).start();
-    }
-
-    private String simpleWeatherName(int code, boolean raining, boolean snowing) {
-        if (snowing) {
-            return "雪";
-        }
-        if (raining) {
-            return "雨";
-        }
-        if (code == 0 || code == 1) {
-            return "晴れ";
-        }
-        if (code == 2 || code == 3 || code == 45 || code == 48) {
-            return "曇り";
-        }
-        return "天気不明";
-    }
-
-    private boolean isRainCode(int code) {
-        return (code >= 51 && code <= 67)
-                || (code >= 80 && code <= 82)
-                || (code >= 95 && code <= 99);
-    }
-
-    private boolean isSnowCode(int code) {
-        return (code >= 71 && code <= 77)
-                || code == 85
-                || code == 86;
-    }
-
     private void addStepCounterPanel() {
         LinearLayout panel = card();
-        TextView title = bodyText(selectedStepDayOffset == 0 ? "今日の歩数" : "昨日の歩数");
+        TextView title = bodyText("今日の歩数");
         title.setTypeface(Typeface.DEFAULT_BOLD);
         panel.addView(title);
 
-        LinearLayout switchRow = new LinearLayout(this);
-        switchRow.setOrientation(LinearLayout.HORIZONTAL);
-        Button today = smallButton("今日", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                selectedStepDayOffset = 0;
-                showStepCounter();
-            }
-        });
-        Button yesterday = smallButton("昨日", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                selectedStepDayOffset = -1;
-                showStepCounter();
-            }
-        });
-        today.setBackground(japaneseBox(selectedStepDayOffset == 0 ? COLOR_ACCENT : COLOR_SECONDARY, 6, 1, COLOR_LINE));
-        yesterday.setBackground(japaneseBox(selectedStepDayOffset == -1 ? COLOR_ACCENT : COLOR_SECONDARY, 6, 1, COLOR_LINE));
-        switchRow.addView(today, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams yesterdayParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        yesterdayParams.setMargins(dp(8), 0, 0, 0);
-        switchRow.addView(yesterday, yesterdayParams);
-        panel.addView(switchRow, matchWrapWithBottom(8));
-
-        stepCountView = bodyText(displayedStepCount() + " 歩");
-        stepCountView.setTextSize(34);
+        stepCountView = bodyText(stepsToday + " 歩");
+        stepCountView.setTextSize(scaledTextSize(34));
         stepCountView.setTypeface(Typeface.DEFAULT_BOLD);
         panel.addView(stepCountView);
 
         stepSensorStatusView = bodyText(stepCounterMessage());
         panel.addView(stepSensorStatusView);
 
-        TextView graphTitle = bodyText("最近7日間の歩数（日別）");
+        TextView graphTitle = bodyText("7日間の歩数");
         graphTitle.setTypeface(Typeface.DEFAULT_BOLD);
         panel.addView(graphTitle);
 
-        stepGraphSelectionView = bodyText(formatWeeklyStepSelection(
-                selectedStepGraphIndex,
-                getWeeklySteps()[selectedStepGraphIndex]
-        ));
-        stepGraphSelectionView.setTextSize(scaledTextSize(24));
-        stepGraphSelectionView.setTypeface(Typeface.DEFAULT_BOLD);
-        stepGraphSelectionView.setGravity(Gravity.CENTER);
-        stepGraphSelectionView.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-        stepGraphSelectionView.setPadding(dp(10), dp(10), dp(10), dp(10));
-        panel.addView(stepGraphSelectionView, matchWrapWithBottom(8));
-
         stepGraphView = new StepGraphView(this);
         stepGraphView.setSteps(getWeeklySteps());
-        stepGraphView.setSelectedIndex(selectedStepGraphIndex);
-        stepGraphView.setOnDaySelectedListener(new OnStepGraphDaySelectedListener() {
-            @Override
-            public void onDaySelected(int index, int steps) {
-                selectedStepGraphIndex = index;
-                if (stepGraphSelectionView != null) {
-                    stepGraphSelectionView.setText(formatWeeklyStepSelection(index, steps));
-                }
-            }
-        });
         panel.addView(stepGraphView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(210)
+                dp(170)
         ));
 
         root.addView(panel);
         updateStepCounterText();
+    }
+
+    private void clearExpiredWalkingAlarm() {
+        long timeMillis = prefs().getLong(KEY_WALKING_ALARM_TIME, 0L);
+        boolean active = prefs().getBoolean(KEY_WALKING_ALARM_ACTIVE, false);
+        if (!active || timeMillis <= 0L || timeMillis > System.currentTimeMillis()) {
+            return;
+        }
+        AlarmScheduler.cancel(this, WALKING_ALARM_TITLE, timeMillis);
+        prefs().edit()
+                .putBoolean(KEY_WALKING_ALARM_ACTIVE, false)
+                .remove(KEY_WALKING_ALARM_TIME)
+                .remove(KEY_WALKING_ALARM_MINUTES)
+                .apply();
     }
 
     private String stepCounterMessage() {
@@ -854,20 +623,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private void updateStepCounterText() {
         if (stepCountView != null) {
-            stepCountView.setText(displayedStepCount() + " 歩");
+            stepCountView.setText(String.format(Locale.JAPAN, "%d 歩", stepsToday));
         }
         if (stepSensorStatusView != null) {
             stepSensorStatusView.setText(stepCounterMessage());
         }
         if (stepGraphView != null) {
-            int[] weeklySteps = getWeeklySteps();
-            stepGraphView.setSteps(weeklySteps);
-            if (stepGraphSelectionView != null) {
-                stepGraphSelectionView.setText(formatWeeklyStepSelection(
-                        selectedStepGraphIndex,
-                        weeklySteps[selectedStepGraphIndex]
-                ));
-            }
+            stepGraphView.setSteps(getWeeklySteps());
         }
     }
 
@@ -914,19 +676,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private String todayKey() {
         return new SimpleDateFormat("yyyy-MM-dd", Locale.JAPAN).format(new Date());
-    }
-
-    private String dateKeyWithOffset(int dayOffset) {
-        Calendar calendar = Calendar.getInstance(Locale.JAPAN);
-        calendar.add(Calendar.DAY_OF_YEAR, dayOffset);
-        return new SimpleDateFormat("yyyy-MM-dd", Locale.JAPAN).format(calendar.getTime());
-    }
-
-    private int displayedStepCount() {
-        if (selectedStepDayOffset == 0) {
-            return stepsToday;
-        }
-        return loadStepHistory().optInt(dateKeyWithOffset(selectedStepDayOffset), 0);
     }
 
     private boolean isJapaneseHoliday(Calendar date) {
@@ -1047,25 +796,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return values;
     }
 
-    private String formatWeeklyStepSelection(int index, int steps) {
-        Calendar calendar = Calendar.getInstance(Locale.JAPAN);
-        calendar.add(Calendar.DAY_OF_YEAR, index - 6);
-        String[] weekdays = {"日", "月", "火", "水", "木", "金", "土"};
-        return String.format(
-                Locale.JAPAN,
-                "%d月%d日（%s） %,d歩",
-                calendar.get(Calendar.MONTH) + 1,
-                calendar.get(Calendar.DAY_OF_MONTH),
-                weekdays[calendar.get(Calendar.DAY_OF_WEEK) - 1],
-                steps
-        );
-    }
-
     private void showNotes() {
-        beginScreen("メモ", "大きな文字で見やすいメモ");
+        currentScreen = Screen.NOTES;
+        beginScreen("メモ帳", "大きな文字でかんたんにメモ");
         root.addView(backButton());
 
-        Button add = bigButton("メモを追加", "メモを追加", COLOR_NOTES, new View.OnClickListener() {
+        Button add = bigButton("メモを書く", "メモを書く", COLOR_NOTES, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 showNoteDialog();
@@ -1075,32 +811,24 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
         List<String> notes = loadNotes();
         if (notes.isEmpty()) {
-            root.addView(bodyText("まだメモはありません"));
+            root.addView(bodyText("まだメモはありません。\n思いついたことをすぐ書けます。"));
             addAdBanner();
             return;
         }
 
         for (int i = 0; i < notes.size(); i++) {
             final int index = i;
-            String note = notes.get(i);
             LinearLayout card = card();
-            TextView noteText = bodyText(note);
+            TextView noteText = bodyText(notes.get(i));
             card.addView(noteText);
-            card.addView(compactDeleteOnlyRow(new View.OnClickListener() {
+            Button delete = smallButton("削除", new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    showDeleteConfirmation(
-                            "メモを削除",
-                            "削除するメモ",
-                            note,
-                            "メモを削除しました",
-                            () -> {
-                                deleteNote(index);
-                                showNotes();
-                            }
-                    );
+                    deleteNote(index);
+                    showNotes();
                 }
-            }));
+            });
+            card.addView(delete);
             root.addView(card);
         }
         addAdBanner();
@@ -1108,10 +836,15 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private void showNoteDialog() {
         final EditText input = new EditText(this);
-        input.setTextSize(24);
+        input.setTextSize(scaledTextSize(24));
         input.setMinLines(4);
         input.setGravity(Gravity.TOP);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         input.setHint("メモを書く");
+        input.setTextColor(COLOR_TEXT);
+        input.setHintTextColor(COLOR_MUTED);
+        input.setBackground(inputBackground());
+        input.setPadding(dp(14), dp(10), dp(14), dp(10));
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("新しいメモ")
@@ -1121,12 +854,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 .create();
 
         dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextSize(20);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
+            styleDialogButtons(dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String value = input.getText().toString().trim();
                 if (value.isEmpty()) {
-                    input.setError("メモを入力してください");
+                    showInputError(input, "メモを入力してください");
                     return;
                 }
                 addNote(value);
@@ -1137,14 +869,40 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         });
 
         dialog.show();
-        applyGlobalBold(dialog);
         input.requestFocus();
         showKeyboard(input);
     }
 
     private void showMedicines() {
+        currentScreen = Screen.MEDICINES;
         beginScreen("薬アラーム", "薬の時間を音でお知らせ");
         root.addView(backButton());
+        if (!hasNotificationPermission()) {
+            root.addView(permissionCard(
+                    "通知の許可",
+                    "薬の時間を音と振動でお知らせするには、通知の許可が必要です。",
+                    notificationPermissionActionLabel(),
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            handleNotificationPermissionAction();
+                        }
+                    }
+            ));
+        }
+        if (!hasExactAlarmAccess()) {
+            root.addView(permissionCard(
+                    "正確なアラーム",
+                    "薬の時間を予定どおりに鳴らすには、アラームの特別な許可が必要です。許可がないと数分以上遅れることがあります。",
+                    "設定を開く",
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            requestExactAlarmAccess();
+                        }
+                    }
+            ));
+        }
         root.addView(bigButton("薬を追加", "薬アラームを追加", COLOR_MEDICINE, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -1168,42 +926,29 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             item.addView(bodyText(formatEventTime(medicine.timeMillis)));
             if (medicine.confirmed) {
                 item.addView(bodyText("確認済みです"));
-                item.addView(compactDeleteOnlyRow(v -> showDeleteConfirmation(
-                        "薬を削除",
-                        "削除する薬",
-                        medicine.title,
-                        "薬を削除しました",
-                        () -> {
-                            deleteTimedItem(KEY_MEDICINES, index);
-                            showMedicines();
-                        }
-                )));
             } else {
-                item.addView(primaryDeleteActionRow(
-                        "確認しました",
-                        COLOR_MEDICINE,
-                        v -> {
-                            confirmTimedItem(KEY_MEDICINES, index, true);
-                            showMedicines();
-                        },
-                        v -> showDeleteConfirmation(
-                                "薬を削除",
-                                "削除する薬",
-                                medicine.title,
-                                "薬を削除しました",
-                                () -> {
-                                    deleteTimedItem(KEY_MEDICINES, index);
-                                    showMedicines();
-                                }
-                        )
-                ));
+                item.addView(smallButton("確認しました", new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        confirmTimedItem(KEY_MEDICINES, index, true);
+                        showMedicines();
+                    }
+                }));
             }
+            item.addView(smallButton("削除", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    deleteTimedItem(KEY_MEDICINES, index);
+                    showMedicines();
+                }
+            }));
             root.addView(item);
         }
         addAdBanner();
     }
 
     private void showMedicineDialog() {
+        currentScreen = Screen.MEDICINE_FORM;
         beginScreen("薬を追加", "薬の時間を選んで保存");
         root.addView(smallButton("薬アラームへ戻る", new View.OnClickListener() {
             @Override
@@ -1216,49 +961,21 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         LinearLayout panel = card();
         panel.addView(sectionTitle("薬の名前"));
         final EditText input = new EditText(this);
-        input.setTextSize(24);
-        input.setHint("例：朝の薬");
-        input.setSingleLine(true);
-        input.setMaxLines(1);
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        input.setImeOptions(EditorInfo.IME_ACTION_NEXT);
-        input.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-        input.setPadding(dp(14), dp(10), dp(14), dp(10));
+        configureLargeInputField(input, "例：朝の薬", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        setInitialInputText(input, draftMedicineName);
         panel.addView(input, matchWrap());
 
+        panel.addView(sectionTitle("時間"));
         prepareDraftMedicineTime();
 
         LinearLayout timePanel = new LinearLayout(this);
         timePanel.setOrientation(LinearLayout.VERTICAL);
         timePanel.setPadding(dp(10), dp(10), dp(10), dp(10));
-        timePanel.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-
-        input.setOnEditorActionListener((view, actionId, event) -> {
-            boolean enterPressed = event != null
-                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
-                    && event.getAction() == KeyEvent.ACTION_DOWN;
-            if (actionId == EditorInfo.IME_ACTION_NEXT
-                    || actionId == EditorInfo.IME_ACTION_DONE
-                    || enterPressed) {
-                moveFromKeyboardToSection(input, timePanel);
-                return true;
-            }
-            return false;
-        });
-        Button moveToTimeButton = smallButton("次へ：時間を選ぶ", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                moveFromKeyboardToSection(input, timePanel);
-            }
-        });
-        moveToTimeButton.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
-        panel.addView(moveToTimeButton);
-
-        panel.addView(sectionTitle("時間"));
+        timePanel.setBackground(inputBackground());
         panel.addView(timePanel, matchWrap());
 
         final TextView timeDisplay = bodyText("");
-        timeDisplay.setTextSize(40);
+        timeDisplay.setTextSize(scaledTextSize(40));
         timeDisplay.setGravity(Gravity.CENTER);
         timeDisplay.setTypeface(Typeface.DEFAULT_BOLD);
         timePanel.addView(timeDisplay, matchWrap());
@@ -1303,9 +1020,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             public void onClick(View v) {
                 String name = input.getText().toString().trim();
                 if (name.isEmpty()) {
-                    input.setError("薬の名前を入力してください");
+                    showInputError(input, "薬の名前を入力してください");
                     return;
                 }
+                draftMedicineName = name;
                 Calendar calendar = Calendar.getInstance(Locale.JAPAN);
                 calendar.set(Calendar.HOUR_OF_DAY, draftMedicineHour);
                 calendar.set(Calendar.MINUTE, draftMedicineMinute);
@@ -1315,6 +1033,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     calendar.add(Calendar.DAY_OF_YEAR, 1);
                 }
                 CalendarEvent medicine = new CalendarEvent("薬: " + name, calendar.getTimeInMillis());
+                if (!hasNotificationPermission()) {
+                    queuePendingReminderSave(KEY_MEDICINES, medicine, false);
+                    hideKeyboard(input);
+                    return;
+                }
+                if (!hasExactAlarmAccess()) {
+                    queuePendingReminderSave(KEY_MEDICINES, medicine, false);
+                    hideKeyboard(input);
+                    return;
+                }
                 addTimedItem(KEY_MEDICINES, medicine);
                 scheduleEventAlarm(medicine);
                 resetDraftMedicineTime();
@@ -1325,128 +1053,102 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }));
         root.addView(panel);
         input.requestFocus();
-        showKeyboard(input);
     }
 
     private void showEmergency() {
-        beginScreen("家族", "家族や病院へすぐ電話");
+        currentScreen = Screen.EMERGENCY;
+        beginScreen("緊急連絡", "家族や病院へすぐ電話");
         root.addView(backButton());
-        List<FamilyContact> contacts = loadFamilyContacts();
-        int limit = isPremiumActive() ? 5 : 1;
-
-        root.addView(bigButton("家族を追加", "家族の連絡先を追加", COLOR_EMERGENCY, new View.OnClickListener() {
+        String name = prefs().getString(KEY_EMERGENCY_NAME, "");
+        String phone = prefs().getString(KEY_EMERGENCY_PHONE, "");
+        LinearLayout panel = card();
+        String currentText;
+        if (phone.isEmpty()) {
+            currentText = "連絡先が未設定です";
+        } else if (name.isEmpty()) {
+            currentText = "登録番号: " + phone;
+        } else {
+            currentText = name + "\n" + phone;
+        }
+        TextView current = bodyText(currentText);
+        current.setTypeface(Typeface.DEFAULT_BOLD);
+        panel.addView(current);
+        panel.addView(bigButton("電話する", "登録した番号に電話", COLOR_EMERGENCY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (loadFamilyContacts().size() >= (isPremiumActive() ? 5 : 1)) {
-                    Toast.makeText(MainActivity.this, isPremiumActive() ? "家族は最大5人までです" : "無料版は1人までです", Toast.LENGTH_LONG).show();
-                    if (!isPremiumActive()) {
-                        showPremiumScreen();
-                    }
-                    return;
-                }
-                showFamilyContactDialog(-1);
+                callEmergencyNumber();
             }
         }));
-
-        root.addView(bodyText(isPremiumActive() ? "プレミアム会員: 最大5人まで登録できます。" : "無料版: 1人まで登録できます。"));
-
-        if (contacts.isEmpty()) {
-            root.addView(bodyText("家族が未設定です"));
-            addAdBanner();
-            return;
-        }
-
-        for (int i = 0; i < contacts.size(); i++) {
-            final int index = i;
-            FamilyContact contact = contacts.get(i);
-            LinearLayout panel = card();
-            TextView current = bodyText(contact.name.isEmpty() ? contact.phone : contact.name + "\n" + contact.phone);
-            current.setTypeface(Typeface.DEFAULT_BOLD);
-            panel.addView(current);
-            panel.addView(bigButton("電話する", "登録した番号に電話", COLOR_EMERGENCY, new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    callFamilyContact(index);
-                }
-            }));
-            panel.addView(primaryDeleteActionRow(
-                    "編集",
-                    COLOR_SECONDARY,
-                    v -> showFamilyContactDialog(index),
-                    v -> showDeleteConfirmation(
-                            "家族を削除",
-                            "削除する連絡先",
-                            contact.name.isEmpty() ? contact.phone : contact.name,
-                            "家族の連絡先を削除しました",
-                            () -> {
-                                deleteFamilyContact(index);
-                                showEmergency();
-                            }
-                    )
-            ));
-            root.addView(panel);
-        }
+        panel.addView(smallButton("連絡先を設定", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showEmergencyPhoneDialog();
+            }
+        }));
+        root.addView(panel);
         addAdBanner();
     }
 
-    private void showFamilyContactDialog(final int editIndex) {
-        List<FamilyContact> contacts = loadFamilyContacts();
-        FamilyContact existing = editIndex >= 0 && editIndex < contacts.size() ? contacts.get(editIndex) : null;
-
+    private void showEmergencyPhoneDialog() {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(dp(16), 0, dp(16), 0);
 
         final EditText nameInput = new EditText(this);
-        nameInput.setTextSize(24);
-        nameInput.setHint("名前 例：長男");
-        nameInput.setText(existing == null ? "" : existing.name);
+        configureLargeInputField(nameInput, "名前 例：長男", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        nameInput.setText(prefs().getString(KEY_EMERGENCY_NAME, ""));
         layout.addView(nameInput, matchWrap());
 
         final EditText phoneInput = new EditText(this);
-        phoneInput.setTextSize(24);
-        phoneInput.setHint("電話番号 例：09012345678");
-        phoneInput.setText(existing == null ? "" : existing.phone);
+        configureLargeInputField(phoneInput, "電話番号 例：09012345678", InputType.TYPE_CLASS_PHONE);
+        phoneInput.setText(prefs().getString(KEY_EMERGENCY_PHONE, ""));
         layout.addView(phoneInput, matchWrap());
 
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("家族の連絡先")
+                .setTitle("緊急連絡先")
                 .setView(layout)
                 .setPositiveButton("保存", null)
                 .setNegativeButton("キャンセル", null)
                 .create();
         dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextSize(20);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
+            styleDialogButtons(dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String name = nameInput.getText().toString().trim();
                 String phone = phoneInput.getText().toString().trim();
                 if (phone.isEmpty()) {
-                    phoneInput.setError("電話番号を入力してください");
+                    showInputError(phoneInput, "電話番号を入力してください");
                     return;
                 }
-                saveFamilyContact(editIndex, new FamilyContact(name, phone));
+                prefs().edit()
+                        .putString(KEY_EMERGENCY_NAME, name)
+                        .putString(KEY_EMERGENCY_PHONE, phone)
+                        .apply();
                 dialog.dismiss();
                 hideKeyboard(phoneInput);
                 showEmergency();
             });
         });
         dialog.show();
-        applyGlobalBold(dialog);
         nameInput.requestFocus();
         showKeyboard(nameInput);
     }
 
-    private void callFamilyContact(int index) {
-        List<FamilyContact> contacts = loadFamilyContacts();
-        if (index < 0 || index >= contacts.size()) {
-            showFamilyContactDialog(-1);
+    private void callEmergencyNumber() {
+        String phone = prefs().getString(KEY_EMERGENCY_PHONE, "");
+        if (phone.isEmpty()) {
+            showEmergencyPhoneDialog();
             return;
         }
-        startActivity(new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + contacts.get(index).phone)));
+        Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + phone));
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            Toast.makeText(this, "電話アプリが見つかりません", Toast.LENGTH_LONG).show();
+            return;
+        }
+        startActivity(intent);
     }
 
     private void showTodos() {
+        currentScreen = Screen.TODOS;
         cleanupOldCompletedTodos();
         beginScreen("今日やること", "終わったら線で消します");
         root.addView(backButton());
@@ -1475,53 +1177,66 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 item.addView(bodyText("完了しました。明日、自動で消えます。"));
             }
             item.addView(text, 0);
-            item.addView(primaryDeleteActionRow(
-                    todo.done ? "戻す" : "完了",
-                    COLOR_TODO,
-                    v -> {
-                        toggleTodoDone(index);
-                        showTodos();
-                    },
-                    v -> showDeleteConfirmation(
-                            "やることを削除",
-                            "削除する内容",
-                            todo.text,
-                            "やることを削除しました",
-                            () -> {
-                                deleteTodo(index);
-                                showTodos();
-                            }
-                    )
-            ));
+            item.addView(smallButton(todo.done ? "戻す" : "完了", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleTodoDone(index);
+                    showTodos();
+                }
+            }));
+            item.addView(smallButton("削除", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    deleteTodo(index);
+                    showTodos();
+                }
+            }));
             root.addView(item);
         }
         addAdBanner();
     }
 
     private void showShopping() {
-        beginScreen("買い物リスト", "商品名と数量を大きく表示");
+        currentScreen = Screen.SHOPPING;
+        beginScreen("買い物リスト", "名前・数・番号を大きく表示");
         LinearLayout topRow = new LinearLayout(this);
-        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        boolean stackedTopButtons = prefersSingleColumnLayout();
+        topRow.setOrientation(stackedTopButtons ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         Button back = backButton();
-        topRow.addView(back, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams backParams = new LinearLayout.LayoutParams(
+                stackedTopButtons ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                stackedTopButtons ? 0f : 1f
+        );
+        if (stackedTopButtons) {
+            backParams.setMargins(0, 0, 0, dp(8));
+        }
+        topRow.addView(back, backParams);
         Button clear = smallButton("全て削除", new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                showDeleteConfirmation(
-                        "買い物リストを削除",
-                        "削除する内容",
-                        "登録されている買う物をすべて",
-                        "買い物リストを全て削除しました",
-                        () -> {
+                AlertDialog dialog = new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("買い物リストを全て削除")
+                        .setMessage("全ての買い物メモを消します。よろしいですか。")
+                        .setPositiveButton("削除する", (confirmDialog, which) -> {
                             clearShoppingItems();
                             showShopping();
-                        }
-                );
+                        })
+                        .setNegativeButton("キャンセル", null)
+                        .create();
+                dialog.setOnShowListener(d -> styleDialogButtons(dialog));
+                dialog.show();
             }
         });
-        clear.setBackground(japaneseBox(COLOR_EMERGENCY, 6, 1, COLOR_EMERGENCY));
-        LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        clearParams.setMargins(dp(8), 0, 0, 0);
+        applyButtonColors(clear, COLOR_EMERGENCY, COLOR_EMERGENCY);
+        LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(
+                stackedTopButtons ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                stackedTopButtons ? 0f : 1f
+        );
+        if (!stackedTopButtons) {
+            clearParams.setMargins(dp(8), 0, 0, 0);
+        }
         topRow.addView(clear, clearParams);
         root.addView(topRow, matchWrapWithBottom(8));
 
@@ -1548,25 +1263,20 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 text.setTextColor(COLOR_MUTED);
             }
             item.addView(text);
-
-            item.addView(primaryDeleteActionRow(
-                    value.bought ? "戻す" : "買った",
-                    COLOR_SHOPPING,
-                    v -> {
-                        toggleShoppingBought(index);
-                        showShopping();
-                    },
-                    v -> showDeleteConfirmation(
-                            "買う物を削除",
-                            "削除する物",
-                            value.name,
-                            "買う物を削除しました",
-                            () -> {
-                                deleteShoppingItem(index);
-                                showShopping();
-                            }
-                    )
-            ));
+            item.addView(smallButton(value.bought ? "戻す" : "買った", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    toggleShoppingBought(index);
+                    showShopping();
+                }
+            }));
+            item.addView(smallButton("削除", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    deleteShoppingItem(index);
+                    showShopping();
+                }
+            }));
             root.addView(item);
         }
         addAdBanner();
@@ -1575,7 +1285,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private String formatShoppingItem(ShoppingItem item) {
         StringBuilder builder = new StringBuilder(item.name);
         if (!item.amount.isEmpty()) {
-            builder.append("\n数量: ").append(item.amount);
+            builder.append("\n数: ").append(item.amount);
+        }
+        if (!item.number.isEmpty()) {
+            builder.append("\n番号: ").append(item.number);
         }
         return builder.toString();
     }
@@ -1586,26 +1299,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         layout.setPadding(dp(16), 0, dp(16), 0);
 
         final EditText nameInput = new EditText(this);
-        nameInput.setTextSize(scaledTextSize(24));
-        nameInput.setHint("商品名");
-        nameInput.setSingleLine(true);
-        nameInput.setImeOptions(EditorInfo.IME_ACTION_NEXT);
+        configureLargeInputField(nameInput, "名前 例：牛乳", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         layout.addView(nameInput, matchWrap());
 
         final EditText amountInput = new EditText(this);
-        amountInput.setTextSize(scaledTextSize(24));
-        amountInput.setHint("数量");
-        amountInput.setSingleLine(true);
-        amountInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        configureLargeInputField(amountInput, "数 例：2本", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         layout.addView(amountInput, matchWrap());
 
-        nameInput.setOnEditorActionListener((view, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_NEXT) {
-                amountInput.requestFocus();
-                return true;
-            }
-            return false;
-        });
+        final EditText numberInput = new EditText(this);
+        configureLargeInputField(numberInput, "番号 例：3番", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        layout.addView(numberInput, matchWrap());
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("買う物を追加")
@@ -1614,17 +1317,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 .setNegativeButton("キャンセル", null)
                 .create();
         dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextSize(20);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
+            styleDialogButtons(dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String name = nameInput.getText().toString().trim();
                 if (name.isEmpty()) {
-                    nameInput.setError("名前を入力してください");
+                    showInputError(nameInput, "名前を入力してください");
                     return;
                 }
                 addShoppingItem(new ShoppingItem(
                         name,
                         amountInput.getText().toString().trim(),
+                        numberInput.getText().toString().trim(),
                         false
                 ));
                 dialog.dismiss();
@@ -1633,15 +1336,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             });
         });
         dialog.show();
-        applyGlobalBold(dialog);
         nameInput.requestFocus();
         showKeyboard(nameInput);
     }
 
     private void showSimpleItemDialog(String title, String key, String hint, boolean doneMode) {
         final EditText input = new EditText(this);
-        input.setTextSize(24);
-        input.setHint(hint);
+        configureLargeInputField(input, hint, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(title)
                 .setView(input)
@@ -1649,12 +1350,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 .setNegativeButton("キャンセル", null)
                 .create();
         dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextSize(20);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
+            styleDialogButtons(dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
                 String value = input.getText().toString().trim();
                 if (value.isEmpty()) {
-                    input.setError("入力してください");
+                    showInputError(input, "入力してください");
                     return;
                 }
                 if (doneMode) {
@@ -1672,14 +1372,40 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             });
         });
         dialog.show();
-        applyGlobalBold(dialog);
         input.requestFocus();
         showKeyboard(input);
     }
 
     private void showCalendar() {
+        currentScreen = Screen.CALENDAR;
         beginScreen("予定", "かんたんな予定のお知らせ");
         root.addView(backButton());
+        if (!hasNotificationPermission()) {
+            root.addView(permissionCard(
+                    "通知の許可",
+                    "予定の時間を確実にお知らせするには、通知の許可が必要です。",
+                    notificationPermissionActionLabel(),
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            handleNotificationPermissionAction();
+                        }
+                    }
+            ));
+        }
+        if (!hasExactAlarmAccess()) {
+            root.addView(permissionCard(
+                    "正確なアラーム",
+                    "病院や予定の時刻どおりにお知らせするには、アラームの特別な許可が必要です。許可がないと数分以上遅れることがあります。",
+                    "設定を開く",
+                    new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            requestExactAlarmAccess();
+                        }
+                    }
+            ));
+        }
 
         root.addView(bigButton("予定を追加", "予定のお知らせを追加", COLOR_SCHEDULE, new View.OnClickListener() {
             @Override
@@ -1706,198 +1432,30 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             card.addView(bodyText(formatEventTime(event.timeMillis)));
             if (event.confirmed) {
                 card.addView(bodyText("確認済みです"));
-                card.addView(compactDeleteOnlyRow(v ->
-                        showDeleteEventConfirmation(index, event.title)));
             } else {
-                card.addView(primaryDeleteActionRow(
-                        "確認しました",
-                        COLOR_SCHEDULE,
-                        v -> {
-                            confirmEvent(index);
-                            showCalendar();
-                        },
-                        v -> showDeleteEventConfirmation(index, event.title)
-                ));
+                card.addView(smallButton("確認しました", new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        confirmEvent(index);
+                        showCalendar();
+                    }
+                }));
             }
+            Button delete = smallButton("削除", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    deleteEvent(index);
+                    showCalendar();
+                }
+            });
+            card.addView(delete);
             root.addView(card);
         }
         addAdBanner();
     }
 
-    private void showDeleteEventConfirmation(final int index, String eventTitle) {
-        showDeleteConfirmation(
-                "予定を削除",
-                "削除する予定",
-                eventTitle,
-                "予定を削除しました",
-                () -> {
-                    deleteEvent(index);
-                    showCalendar();
-                }
-        );
-    }
-
-    private void showDeleteConfirmation(
-            String dialogTitle,
-            String itemLabel,
-            String itemName,
-            String successMessage,
-            Runnable deleteAction
-    ) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(24), dp(22), dp(24), dp(24));
-        panel.setBackground(japaneseBox(COLOR_CARD, 8, 1, COLOR_ACCENT));
-
-        LinearLayout titleRow = new LinearLayout(this);
-        titleRow.setOrientation(LinearLayout.HORIZONTAL);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        View accent = new View(this);
-        accent.setBackgroundColor(COLOR_ACCENT);
-        LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(4), dp(38));
-        accentParams.setMargins(0, 0, dp(12), 0);
-        titleRow.addView(accent, accentParams);
-
-        TextView title = new TextView(this);
-        title.setText(dialogTitle);
-        title.setTextSize(scaledTextSize(28));
-        title.setTextColor(COLOR_TEXT);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        titleRow.addView(title);
-        panel.addView(titleRow, matchWrapWithBottom(18));
-
-        TextView question = bodyText("削除してよろしいですか？");
-        question.setTextSize(scaledTextSize(21));
-        panel.addView(question);
-
-        LinearLayout eventBox = new LinearLayout(this);
-        eventBox.setOrientation(LinearLayout.VERTICAL);
-        eventBox.setPadding(dp(16), dp(14), dp(16), dp(14));
-        eventBox.setBackground(japaneseBox(COLOR_BG, 6, 1, COLOR_LINE));
-
-        TextView eventLabel = new TextView(this);
-        eventLabel.setText(itemLabel);
-        eventLabel.setTextSize(scaledTextSize(16));
-        eventLabel.setTextColor(COLOR_ACCENT);
-        eventLabel.setTypeface(Typeface.DEFAULT_BOLD);
-        eventBox.addView(eventLabel);
-
-        TextView eventName = new TextView(this);
-        eventName.setText(itemName);
-        eventName.setTextSize(scaledTextSize(25));
-        eventName.setTextColor(COLOR_TEXT);
-        eventName.setTypeface(Typeface.DEFAULT_BOLD);
-        eventName.setMaxLines(5);
-        eventName.setEllipsize(TextUtils.TruncateAt.END);
-        eventName.setPadding(0, dp(6), 0, 0);
-        eventBox.addView(eventName);
-        panel.addView(eventBox, matchWrapWithBottom(12));
-
-        TextView warning = new TextView(this);
-        warning.setText("削除すると元に戻せません");
-        warning.setTextSize(scaledTextSize(18));
-        warning.setTextColor(COLOR_EMERGENCY);
-        warning.setGravity(Gravity.CENTER);
-        warning.setTypeface(Typeface.DEFAULT_BOLD);
-        panel.addView(warning, matchWrapWithBottom(20));
-
-        LinearLayout buttonRow = new LinearLayout(this);
-        buttonRow.setOrientation(LinearLayout.HORIZONTAL);
-        buttonRow.setGravity(Gravity.CENTER);
-
-        Button cancelButton = dialogActionButton("戻る", COLOR_SECONDARY);
-        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0, dp(68), 1f);
-        cancelParams.setMargins(0, 0, dp(6), 0);
-        buttonRow.addView(cancelButton, cancelParams);
-
-        Button deleteButton = dialogActionButton("削除する", COLOR_EMERGENCY);
-        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(68), 1f);
-        deleteParams.setMargins(dp(6), 0, 0, 0);
-        buttonRow.addView(deleteButton, deleteParams);
-        panel.addView(buttonRow, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        ));
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(panel)
-                .create();
-        dialog.setCanceledOnTouchOutside(false);
-        cancelButton.setOnClickListener(v -> dialog.dismiss());
-        deleteButton.setOnClickListener(v -> {
-            dialog.dismiss();
-            deleteAction.run();
-            Toast.makeText(MainActivity.this, successMessage, Toast.LENGTH_SHORT).show();
-        });
-        dialog.setOnShowListener(d -> {
-            if (dialog.getWindow() != null) {
-                dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            }
-        });
-        dialog.show();
-        applyGlobalBold(dialog);
-    }
-
-    private Button dialogActionButton(String label, int color) {
-        Button button = new Button(this);
-        button.setText(label);
-        button.setTextSize(scaledTextSize(21));
-        button.setAllCaps(false);
-        button.setTextColor(Color.WHITE);
-        button.setTypeface(Typeface.DEFAULT_BOLD);
-        button.setGravity(Gravity.CENTER);
-        button.setPadding(dp(8), dp(8), dp(8), dp(8));
-        button.setBackground(japaneseBox(color, 6, 1, color));
-        return button;
-    }
-
-    private LinearLayout primaryDeleteActionRow(
-            String primaryLabel,
-            int primaryColor,
-            View.OnClickListener primaryListener,
-            View.OnClickListener deleteListener
-    ) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-
-        Button primaryButton = smallButton(primaryLabel, primaryListener);
-        primaryButton.setBackground(japaneseBox(primaryColor, 6, 1, primaryColor));
-        LinearLayout.LayoutParams primaryParams = new LinearLayout.LayoutParams(0, dp(58), 3f);
-        primaryParams.setMargins(0, 0, dp(6), 0);
-        row.addView(primaryButton, primaryParams);
-
-        Button deleteButton = compactDeleteButton(deleteListener);
-        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        deleteParams.setMargins(dp(6), dp(5), 0, dp(5));
-        row.addView(deleteButton, deleteParams);
-        return row;
-    }
-
-    private LinearLayout compactDeleteOnlyRow(View.OnClickListener deleteListener) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(new View(this), new LinearLayout.LayoutParams(0, dp(48), 3f));
-
-        Button deleteButton = compactDeleteButton(deleteListener);
-        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        deleteParams.setMargins(dp(12), 0, 0, 0);
-        row.addView(deleteButton, deleteParams);
-        return row;
-    }
-
-    private Button compactDeleteButton(View.OnClickListener listener) {
-        Button button = smallButton("削除", listener);
-        button.setTextSize(scaledTextSize(16));
-        button.setMinHeight(0);
-        button.setPadding(dp(6), dp(4), dp(6), dp(4));
-        button.setBackground(japaneseBox(COLOR_EMERGENCY, 6, 1, COLOR_EMERGENCY));
-        return button;
-    }
-
     private void showEventForm() {
+        currentScreen = Screen.EVENT_FORM;
         beginScreen("予定を追加", "日付と時間を選んで保存");
         root.addView(backToCalendarButton());
 
@@ -1907,20 +1465,72 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         panel.addView(nameLabel);
 
         final EditText title = new EditText(this);
-        title.setTextSize(24);
-        title.setHint("例：病院");
+        configureLargeInputField(title, "例：病院", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         title.setSingleLine(false);
         title.setMinLines(1);
-        title.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-        title.setPadding(dp(14), dp(10), dp(14), dp(10));
+        setInitialInputText(title, draftEventTitle);
         panel.addView(title, matchWrap());
 
         TextView dateLabel = sectionTitle("日付");
         panel.addView(dateLabel);
+        prepareDraftEventDate();
 
-        final DatePicker datePicker = new DatePicker(this);
-        datePicker.setCalendarViewShown(false);
-        panel.addView(datePicker, matchWrap());
+        LinearLayout datePanel = new LinearLayout(this);
+        datePanel.setOrientation(LinearLayout.VERTICAL);
+        datePanel.setPadding(dp(10), dp(10), dp(10), dp(10));
+        datePanel.setBackground(inputBackground());
+        panel.addView(datePanel, matchWrap());
+
+        final TextView dateDisplay = bodyText("");
+        dateDisplay.setTextSize(scaledTextSize(28));
+        dateDisplay.setTypeface(Typeface.DEFAULT_BOLD);
+        dateDisplay.setGravity(Gravity.CENTER);
+        datePanel.addView(dateDisplay, matchWrap());
+
+        final boolean stackedDateButtons = prefersSingleColumnLayout();
+        LinearLayout quickDateRow = new LinearLayout(this);
+        quickDateRow.setOrientation(stackedDateButtons ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        quickDateRow.addView(dateAdjustButton("今日", "日付を今日にする", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setDraftEventDateDaysFromToday(0);
+                updateEventDateDisplay(dateDisplay);
+            }
+        }), weightedDateButtonParams(stackedDateButtons));
+        quickDateRow.addView(dateAdjustButton("明日", "日付を明日にする", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setDraftEventDateDaysFromToday(1);
+                updateEventDateDisplay(dateDisplay);
+            }
+        }), weightedDateButtonParams(stackedDateButtons));
+        quickDateRow.addView(dateAdjustButton("1週間後", "日付を1週間後にする", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                setDraftEventDateDaysFromToday(7);
+                updateEventDateDisplay(dateDisplay);
+            }
+        }), weightedDateButtonParams(stackedDateButtons));
+        datePanel.addView(quickDateRow, matchWrap());
+
+        LinearLayout moveDateRow = new LinearLayout(this);
+        moveDateRow.setOrientation(stackedDateButtons ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        moveDateRow.addView(dateAdjustButton("前の日", "日付を1日前にする", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                shiftDraftEventDate(-1);
+                updateEventDateDisplay(dateDisplay);
+            }
+        }), weightedDateButtonParams(stackedDateButtons));
+        moveDateRow.addView(dateAdjustButton("次の日", "日付を1日後にする", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                shiftDraftEventDate(1);
+                updateEventDateDisplay(dateDisplay);
+            }
+        }), weightedDateButtonParams(stackedDateButtons));
+        datePanel.addView(moveDateRow, matchWrap());
+        updateEventDateDisplay(dateDisplay);
 
         TextView timeLabel = sectionTitle("時間");
         panel.addView(timeLabel);
@@ -1930,11 +1540,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         LinearLayout timePanel = new LinearLayout(this);
         timePanel.setOrientation(LinearLayout.VERTICAL);
         timePanel.setPadding(dp(10), dp(10), dp(10), dp(10));
-        timePanel.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
+        timePanel.setBackground(inputBackground());
         panel.addView(timePanel, matchWrap());
 
         final TextView timeDisplay = bodyText("");
-        timeDisplay.setTextSize(40);
+        timeDisplay.setTextSize(scaledTextSize(40));
         timeDisplay.setGravity(Gravity.CENTER);
         timeDisplay.setTypeface(Typeface.DEFAULT_BOLD);
         timePanel.addView(timeDisplay, matchWrap());
@@ -1979,18 +1589,30 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             public void onClick(View v) {
                 String name = title.getText().toString().trim();
                 if (name.isEmpty()) {
-                    title.setError("名前を入力してください");
+                    showInputError(title, "名前を入力してください");
                     return;
                 }
-                Calendar calendar = Calendar.getInstance(Locale.JAPAN);
-                calendar.set(Calendar.YEAR, datePicker.getYear());
-                calendar.set(Calendar.MONTH, datePicker.getMonth());
-                calendar.set(Calendar.DAY_OF_MONTH, datePicker.getDayOfMonth());
+                draftEventTitle = name;
+                Calendar calendar = draftEventDateCalendar();
                 calendar.set(Calendar.HOUR_OF_DAY, draftEventHour);
                 calendar.set(Calendar.MINUTE, draftEventMinute);
                 calendar.set(Calendar.SECOND, 0);
                 calendar.set(Calendar.MILLISECOND, 0);
+                if (calendar.getTimeInMillis() <= System.currentTimeMillis()) {
+                    Toast.makeText(MainActivity.this, "今より後の時間を選んでください", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 CalendarEvent event = new CalendarEvent(name, calendar.getTimeInMillis());
+                if (!hasNotificationPermission()) {
+                    queuePendingReminderSave(KEY_EVENTS, event, false);
+                    hideKeyboard(title);
+                    return;
+                }
+                if (!hasExactAlarmAccess()) {
+                    queuePendingReminderSave(KEY_EVENTS, event, false);
+                    hideKeyboard(title);
+                    return;
+                }
                 addEvent(event);
                 scheduleEventAlarm(event);
                 resetDraftEventTime();
@@ -2002,304 +1624,65 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         panel.addView(save);
 
         root.addView(panel);
-        title.requestFocus();
-        showKeyboard(title);
     }
 
     private void showPremiumScreen() {
-        beginScreen("プレミアム", "2つのプランから選べます");
+        currentScreen = Screen.PREMIUM;
+        beginScreen("プレミアム", "月額300円で広告なし");
         root.addView(backButton());
 
-        LinearLayout benefitsPanel = card();
+        LinearLayout panel = card();
         TextView title = bodyText("プレミアム会員");
-        title.setTextSize(30);
+        title.setTextSize(scaledTextSize(30));
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        benefitsPanel.addView(title);
-        benefitsPanel.addView(bodyText("Google広告を表示しません。"));
-        benefitsPanel.addView(bodyText("家族を最大5人まで登録できます。"));
-        root.addView(benefitsPanel);
+        panel.addView(title);
+        panel.addView(bodyText("月額 300円"));
+        panel.addView(bodyText("Google広告を表示しません。"));
+        panel.addView(bodyText("すべての機能をそのまま使えます。"));
+        root.addView(panel);
 
-        if (isPremiumActive()) {
-            LinearLayout statusPanel = card();
-            PlayBillingManager.PremiumPlan plan = premiumPlan();
-            TextView statusTitle = bodyText(plan == PlayBillingManager.PremiumPlan.LIFETIME
-                    ? "買い切りプランを購入済み"
-                    : "月額プランを利用中");
-            statusTitle.setTextSize(26);
-            statusTitle.setTypeface(Typeface.DEFAULT_BOLD);
-            statusPanel.addView(statusTitle);
-            statusPanel.addView(bodyText("現在、広告は非表示です。"));
-            if (plan == PlayBillingManager.PremiumPlan.LIFETIME) {
-                statusPanel.addView(bodyText("追加のお支払いはありません。ずっと利用できます。"));
-            } else {
-                if (isMonthlyAutoRenewing()) {
-                    statusPanel.addView(bodyText("毎月自動更新。Google Playでいつでも解約できます。"));
-                    statusPanel.addView(premiumCancellationLink());
-                } else {
-                    statusTitle.setText("月額プランは解約済み");
-                    statusPanel.addView(bodyText("自動更新は停止されています。利用期限まではプレミアム機能を使えます。"));
-                    String nextDate = estimatedNextBillingDate();
-                    if (!nextDate.isEmpty()) {
-                        statusPanel.addView(bodyText("利用期限の目安: " + nextDate));
-                    }
-                }
-            }
-            root.addView(statusPanel);
-        } else {
-            String monthlyPrice = billingManager == null ? "¥500 / 月" : billingManager.getMonthlyPrice();
-            LinearLayout monthlyPanel = card();
-            TextView monthlyTitle = bodyText("月額プラン");
-            monthlyTitle.setTextSize(26);
-            monthlyTitle.setTypeface(Typeface.DEFAULT_BOLD);
-            monthlyPanel.addView(monthlyTitle);
-            monthlyPanel.addView(bodyText(monthlyPrice));
-            monthlyPanel.addView(bodyText("毎月自動更新。いつでも解約できます。"));
-            monthlyPanel.addView(bigButton(monthlyPrice + "で登録", "Google Playで月額プランに登録", COLOR_ACCENT, new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (billingManager != null) {
-                        billingManager.launchMonthlyPurchase(MainActivity.this);
-                    }
-                }
-            }));
-            root.addView(monthlyPanel);
-
-            String lifetimePrice = billingManager == null ? "¥3,000" : billingManager.getLifetimePrice();
-            LinearLayout lifetimePanel = card();
-            TextView lifetimeTitle = bodyText("買い切りプラン");
-            lifetimeTitle.setTextSize(26);
-            lifetimeTitle.setTypeface(Typeface.DEFAULT_BOLD);
-            lifetimePanel.addView(lifetimeTitle);
-            lifetimePanel.addView(bodyText(lifetimePrice));
-            lifetimePanel.addView(bodyText("一度のお支払いで、ずっと利用できます。"));
-            lifetimePanel.addView(bigButton(lifetimePrice + "で購入", "Google Playで買い切りプランを購入", COLOR_PRIMARY, new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (billingManager != null) {
-                        billingManager.launchLifetimePurchase(MainActivity.this);
-                    }
-                }
-            }));
-            root.addView(lifetimePanel);
-
-            if (billingManager != null && !billingManager.isAnyProductAvailable()) {
-                root.addView(bodyText(billingManager.isProductQueryFinished()
-                        ? "Google Playで商品を取得できませんでした。Playストア版でお試しください。"
-                        : "Google Playの商品情報を確認しています。"));
-            }
-            addAdBanner();
-        }
-
-        Button restore = bigButton("購入を復元", "以前のプレミアム購入を復元", COLOR_SECONDARY, new View.OnClickListener() {
+        final boolean premiumActive = isPremiumActive();
+        Button subscribe = bigButton(premiumActive ? "登録済みです" : "お申し込みは準備中です",
+                premiumActive ? "プレミアム会員に登録済みです" : "プレミアム会員のお申し込みは準備中です",
+                new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (billingManager != null) {
-                    billingManager.refreshPurchases(true);
-                }
+                showPremiumUnavailable();
             }
         });
-        root.addView(restore);
-    }
+        applyButtonColors(subscribe, premiumActive ? COLOR_SECONDARY : COLOR_ACCENT, COLOR_ACCENT);
+        subscribe.setEnabled(!premiumActive);
+        subscribe.setAlpha(premiumActive ? 0.65f : 1f);
+        root.addView(subscribe);
 
-    private TextView premiumCancellationLink() {
-        final String value = "プレミアム会員キャンセルはこちら";
-        final String linkValue = "こちら";
-        SpannableString text = new SpannableString(value);
-        int linkStart = value.indexOf(linkValue);
-        text.setSpan(new ClickableSpan() {
-            @Override
-            public void onClick(View widget) {
-                showCancellationSurvey();
-            }
-
-            @Override
-            public void updateDrawState(TextPaint drawState) {
-                drawState.setColor(Color.rgb(24, 92, 180));
-                drawState.setUnderlineText(true);
-                drawState.setFakeBoldText(true);
-            }
-        }, linkStart, linkStart + linkValue.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-
-        TextView link = bodyText("");
-        link.setText(text);
-        link.setMovementMethod(LinkMovementMethod.getInstance());
-        link.setHighlightColor(Color.TRANSPARENT);
-        link.setContentDescription("プレミアム会員キャンセルはこちら");
-        return link;
-    }
-
-    private void showCancellationSurvey() {
-        beginScreen("解約アンケート", "解約理由を1つ選んでください");
-        root.addView(premiumBackButton());
-
-        LinearLayout panel = card();
-        panel.addView(sectionTitle("解約する理由"));
-        panel.addView(bodyText("今後の改善のため、当てはまる理由を選んでください。"));
-        String[] reasons = {
-                "料金が高い",
-                "あまり使わない",
-                "必要な機能がない",
-                "操作が難しい",
-                "その他"
-        };
-        for (String reason : reasons) {
-            Button reasonButton = bigButton(
-                    reason,
-                    "解約理由: " + reason,
-                    COLOR_SECONDARY,
-                    v -> showCancellationConfirmation(reason)
-            );
-            panel.addView(reasonButton);
-        }
-        root.addView(panel);
-    }
-
-    private void showCancellationConfirmation(String reason) {
-        beginScreen("解約内容の確認", "アンケートの回答を受け付けました");
-        root.addView(smallButton("アンケートへ戻る", v -> showCancellationSurvey()));
-
-        LinearLayout panel = card();
-        panel.addView(sectionTitle("選んだ理由"));
-        TextView reasonText = bodyText(reason);
-        reasonText.setTypeface(Typeface.DEFAULT_BOLD);
-        panel.addView(reasonText);
-        panel.addView(bodyText("解約しても、現在のお支払い期間が終わるまではプレミアム機能を使えます。"));
-        panel.addView(bodyText("実際の解約はGoogle Playで行います。"));
-        panel.addView(bigButton(
-                "Google Playで解約する",
-                "Google Playで月額プレミアムを解約",
-                COLOR_EMERGENCY,
-                v -> startSubscriptionCancellation(reason)
-        ));
-        root.addView(panel);
-    }
-
-    private void startSubscriptionCancellation(String reason) {
-        prefs().edit()
-                .putString(KEY_CANCELLATION_REASON, reason)
-                .putBoolean(KEY_CANCELLATION_PENDING, true)
-                .apply();
-        showCancellationWaitingScreen();
-        if (billingManager != null) {
-            billingManager.openManageSubscription(this);
+        if (premiumActive) {
+            root.addView(bodyText("現在、広告は非表示です。"));
         } else {
-            Toast.makeText(this, "Google Playに接続できませんでした", Toast.LENGTH_LONG).show();
+            root.addView(bodyText("お申し込み機能は現在準備中です。"));
+            addAdBanner();
         }
-    }
-
-    private void showCancellationWaitingScreen() {
-        beginScreen("解約手続き", "Google Playで解約を完了してください");
-
-        LinearLayout panel = card();
-        panel.addView(sectionTitle("解約状態を確認します"));
-        panel.addView(bodyText("Google Playで「定期購入を解約」を完了してから、このアプリへ戻ってください。"));
-        panel.addView(bodyText("戻ると自動で確認します。反映に少し時間がかかる場合があります。"));
-        panel.addView(bigButton(
-                "Google Playで解約する",
-                "Google Playの解約画面を開く",
-                COLOR_EMERGENCY,
-                v -> {
-                    if (billingManager != null) {
-                        billingManager.openManageSubscription(MainActivity.this);
-                    }
-                }
-        ));
-        panel.addView(bigButton(
-                "解約状態を確認",
-                "Google Playの解約状態を確認",
-                COLOR_PRIMARY,
-                v -> {
-                    if (billingManager != null) {
-                        billingManager.refreshPurchases(true);
-                    }
-                }
-        ));
-        root.addView(panel);
-        root.addView(bigButton("ホームに戻る", "ホームに戻る", COLOR_SECONDARY, v -> showHome()));
-    }
-
-    private void showSubscriptionCancellationComplete() {
-        beginScreen("解約完了", "月額プレミアムの自動更新を停止しました");
-
-        LinearLayout panel = card();
-        TextView title = sectionTitle("解約が完了しました");
-        title.setTextSize(scaledTextSize(28));
-        panel.addView(title);
-        if (isPremiumActive()) {
-            String nextDate = estimatedNextBillingDate();
-            panel.addView(bodyText("次の更新日まではプレミアム機能をそのまま使えます。"));
-            if (!nextDate.isEmpty()) {
-                TextView date = bodyText("次の更新日（利用期限の目安）\n" + nextDate);
-                date.setTextSize(scaledTextSize(24));
-                date.setTypeface(Typeface.DEFAULT_BOLD);
-                date.setGravity(Gravity.CENTER);
-                date.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-                panel.addView(date);
-            }
-            panel.addView(bodyText("Google Playに表示される利用期限が正式な日付です。期限後は自動で無料版に戻ります。"));
-        } else {
-            panel.addView(bodyText("プレミアムの利用期間が終了し、無料版へ切り替わりました。"));
-        }
-        root.addView(panel);
-        root.addView(bigButton("ホームに戻る", "ホームに戻る", COLOR_PRIMARY, v -> showHome()));
-    }
-
-    private Button premiumBackButton() {
-        return smallButton("プレミアムへ戻る", v -> showPremiumScreen());
-    }
-
-    private boolean isMonthlyAutoRenewing() {
-        return prefs().getBoolean(KEY_MONTHLY_AUTO_RENEWING, true);
-    }
-
-    private String estimatedNextBillingDate() {
-        long purchaseTime = prefs().getLong(KEY_MONTHLY_PURCHASE_TIME, 0L);
-        if (purchaseTime <= 0L) {
-            return "";
-        }
-        Calendar next = Calendar.getInstance(Locale.JAPAN);
-        next.setTimeInMillis(purchaseTime);
-        long now = System.currentTimeMillis();
-        int guard = 0;
-        while (next.getTimeInMillis() <= now && guard < 240) {
-            next.add(Calendar.MONTH, 1);
-            guard++;
-        }
-        return new SimpleDateFormat("yyyy年M月d日", Locale.JAPAN).format(next.getTime());
     }
 
     private void showSettings() {
-        beginScreen("設定", "文字の見やすさとバックアップ");
+        currentScreen = Screen.SETTINGS;
+        beginScreen("設定", "文字サイズとバックアップ");
         root.addView(backButton());
 
         LinearLayout sizePanel = card();
         sizePanel.addView(sectionTitle("文字サイズ"));
         sizePanel.addView(bodyText("見やすい大きさを選べます。"));
         LinearLayout sizeRow = new LinearLayout(this);
-        sizeRow.setOrientation(LinearLayout.HORIZONTAL);
-        sizeRow.addView(settingSizeButton("大", 1.0f), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams middle = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        middle.setMargins(dp(8), 0, dp(8), 0);
-        sizeRow.addView(settingSizeButton("特大", 1.18f), middle);
-        sizeRow.addView(settingSizeButton("最大", 1.32f), new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        boolean stackedSizeButtons = prefersSingleColumnLayout();
+        sizeRow.setOrientation(stackedSizeButtons ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        sizeRow.addView(settingSizeButton("大", 1.0f), settingsSizeButtonParams(stackedSizeButtons, false));
+        sizeRow.addView(settingSizeButton("特大", 1.18f), settingsSizeButtonParams(stackedSizeButtons, true));
+        sizeRow.addView(settingSizeButton("最大", 1.32f), settingsSizeButtonParams(stackedSizeButtons, false));
         sizePanel.addView(sizeRow, matchWrap());
-
-        sizePanel.addView(sectionTitle("文字の太さ"));
-        sizePanel.addView(bodyText("すべての文字を太くできます。"));
-        LinearLayout boldRow = new LinearLayout(this);
-        boldRow.setOrientation(LinearLayout.HORIZONTAL);
-        Button standardText = settingBoldButton("標準", false);
-        Button boldText = settingBoldButton("すべて太字", true);
-        boldRow.addView(standardText, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        LinearLayout.LayoutParams boldParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        boldParams.setMargins(dp(8), 0, 0, 0);
-        boldRow.addView(boldText, boldParams);
-        sizePanel.addView(boldRow, matchWrap());
         root.addView(sizePanel);
 
         LinearLayout backupPanel = card();
         backupPanel.addView(sectionTitle("バックアップ"));
-        backupPanel.addView(bodyText("メモ、予定、薬、連絡先、買い物リストを共有またはコピーできます。"));
+        backupPanel.addView(bodyText("メモ、予定、薬、今日やること、連絡先、買い物リストを共有またはコピーできます。"));
         backupPanel.addView(bigButton("バックアップを共有", "バックアップを共有", COLOR_PRIMARY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -2317,6 +1700,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showOnboardingTextSize() {
+        currentScreen = Screen.ONBOARDING_TEXT_SIZE;
         beginScreen("はじめての設定", "見やすい大きさを選びます");
 
         LinearLayout panel = card();
@@ -2350,41 +1734,34 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void showOnboardingEmergency() {
-        beginScreen("家族の連絡先", "困った時にすぐ電話できます");
+        currentScreen = Screen.ONBOARDING_EMERGENCY;
+        beginScreen("緊急連絡先", "困った時にすぐ電話できます");
 
         LinearLayout panel = card();
         panel.addView(sectionTitle("家族や病院の連絡先"));
 
         final EditText nameInput = new EditText(this);
-        nameInput.setTextSize(scaledTextSize(24));
-        nameInput.setHint("名前 例：長男");
-        List<FamilyContact> existingContacts = loadFamilyContacts();
-        if (!existingContacts.isEmpty()) {
-            nameInput.setText(existingContacts.get(0).name);
-        }
-        nameInput.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-        nameInput.setPadding(dp(14), dp(10), dp(14), dp(10));
+        configureLargeInputField(nameInput, "名前 例：長男", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        nameInput.setText(prefs().getString(KEY_EMERGENCY_NAME, ""));
         panel.addView(nameInput, matchWrap());
 
         final EditText phoneInput = new EditText(this);
-        phoneInput.setTextSize(scaledTextSize(24));
-        phoneInput.setHint("電話番号 例：09012345678");
-        if (!existingContacts.isEmpty()) {
-            phoneInput.setText(existingContacts.get(0).phone);
-        }
-        phoneInput.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-        phoneInput.setPadding(dp(14), dp(10), dp(14), dp(10));
+        configureLargeInputField(phoneInput, "電話番号 例：09012345678", InputType.TYPE_CLASS_PHONE);
+        phoneInput.setText(prefs().getString(KEY_EMERGENCY_PHONE, ""));
         panel.addView(phoneInput, matchWrap());
 
-        panel.addView(bigButton("保存して次へ", "家族の連絡先を保存して次へ", COLOR_EMERGENCY, new View.OnClickListener() {
+        panel.addView(bigButton("保存して次へ", "緊急連絡先を保存して次へ", COLOR_EMERGENCY, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String phone = phoneInput.getText().toString().trim();
                 if (phone.isEmpty()) {
-                    phoneInput.setError("電話番号を入力してください");
+                    showInputError(phoneInput, "電話番号を入力してください");
                     return;
                 }
-                saveFamilyContact(0, new FamilyContact(nameInput.getText().toString().trim(), phone));
+                prefs().edit()
+                        .putString(KEY_EMERGENCY_NAME, nameInput.getText().toString().trim())
+                        .putString(KEY_EMERGENCY_PHONE, phone)
+                        .apply();
                 hideKeyboard(phoneInput);
                 showOnboardingMedicine();
             }
@@ -2398,53 +1775,42 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }));
         root.addView(panel);
         nameInput.requestFocus();
-        showKeyboard(nameInput);
     }
 
     private void showOnboardingMedicine() {
+        currentScreen = Screen.ONBOARDING_MEDICINE;
         beginScreen("薬の時間", "毎日の薬を忘れにくくします");
 
         LinearLayout panel = card();
         panel.addView(sectionTitle("薬アラーム"));
+        if (!hasExactAlarmAccess()) {
+            panel.addView(compactBodyText("時間どおりに鳴らすには、あとでアラームの特別な許可が必要です。"));
+            panel.addView(smallButton("設定を開く", new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    requestExactAlarmAccess();
+                }
+            }));
+        }
 
         final EditText medicineInput = new EditText(this);
-        medicineInput.setTextSize(scaledTextSize(24));
-        medicineInput.setHint("例：朝の薬");
-        medicineInput.setSingleLine(true);
-        medicineInput.setMaxLines(1);
-        medicineInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
-        medicineInput.setImeOptions(EditorInfo.IME_ACTION_NEXT);
-        medicineInput.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-        medicineInput.setPadding(dp(14), dp(10), dp(14), dp(10));
+        configureLargeInputField(medicineInput, "例：朝の薬", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        setInitialInputText(medicineInput, draftMedicineName);
         panel.addView(medicineInput, matchWrap());
+        panel.addView(smallButton("あとで設定する", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                resetDraftMedicineTime();
+                hideKeyboard(medicineInput);
+                finishOnboarding();
+            }
+        }));
 
         prepareDraftMedicineTime();
         LinearLayout timePanel = new LinearLayout(this);
         timePanel.setOrientation(LinearLayout.VERTICAL);
         timePanel.setPadding(dp(10), dp(10), dp(10), dp(10));
-        timePanel.setBackground(japaneseBox(Color.WHITE, 6, 1, COLOR_LINE));
-
-        medicineInput.setOnEditorActionListener((view, actionId, event) -> {
-            boolean enterPressed = event != null
-                    && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
-                    && event.getAction() == KeyEvent.ACTION_DOWN;
-            if (actionId == EditorInfo.IME_ACTION_NEXT
-                    || actionId == EditorInfo.IME_ACTION_DONE
-                    || enterPressed) {
-                moveFromKeyboardToSection(medicineInput, timePanel);
-                return true;
-            }
-            return false;
-        });
-        Button moveToTimeButton = smallButton("次へ：時間を選ぶ", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                moveFromKeyboardToSection(medicineInput, timePanel);
-            }
-        });
-        moveToTimeButton.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
-        panel.addView(moveToTimeButton);
-
+        timePanel.setBackground(inputBackground());
         panel.addView(timePanel, matchWrap());
 
         final TextView timeDisplay = bodyText("");
@@ -2493,9 +1859,10 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             public void onClick(View v) {
                 String name = medicineInput.getText().toString().trim();
                 if (name.isEmpty()) {
-                    medicineInput.setError("薬の名前を入力してください");
+                    showInputError(medicineInput, "薬の名前を入力してください");
                     return;
                 }
+                draftMedicineName = name;
                 Calendar calendar = Calendar.getInstance(Locale.JAPAN);
                 calendar.set(Calendar.HOUR_OF_DAY, draftMedicineHour);
                 calendar.set(Calendar.MINUTE, draftMedicineMinute);
@@ -2505,6 +1872,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     calendar.add(Calendar.DAY_OF_YEAR, 1);
                 }
                 CalendarEvent medicine = new CalendarEvent("薬: " + name, calendar.getTimeInMillis());
+                if (!hasNotificationPermission()) {
+                    queuePendingReminderSave(KEY_MEDICINES, medicine, true);
+                    hideKeyboard(medicineInput);
+                    return;
+                }
+                if (!hasExactAlarmAccess()) {
+                    queuePendingReminderSave(KEY_MEDICINES, medicine, true);
+                    hideKeyboard(medicineInput);
+                    return;
+                }
                 addTimedItem(KEY_MEDICINES, medicine);
                 scheduleEventAlarm(medicine);
                 resetDraftMedicineTime();
@@ -2512,21 +1889,14 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 finishOnboarding();
             }
         }));
-        panel.addView(smallButton("あとで設定する", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                resetDraftMedicineTime();
-                hideKeyboard(medicineInput);
-                finishOnboarding();
-            }
-        }));
         root.addView(panel);
         medicineInput.requestFocus();
-        showKeyboard(medicineInput);
     }
 
     private void finishOnboarding() {
-        prefs().edit().putBoolean(KEY_ONBOARDING_DONE, true).apply();
+        prefs().edit()
+                .putBoolean(KEY_ONBOARDING_DONE, true)
+                .apply();
         Toast.makeText(this, "設定が完了しました", Toast.LENGTH_LONG).show();
         showHome();
     }
@@ -2541,48 +1911,41 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             }
         });
         if (Math.abs(textScale() - scale) < 0.02f) {
-            button.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
+            applyButtonColors(button, COLOR_ACCENT, COLOR_ACCENT);
         }
         return button;
     }
 
-    private Button settingBoldButton(String label, final boolean enabled) {
-        Button button = smallButton(label, new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                prefs().edit().putBoolean(KEY_BOLD_TEXT, enabled).apply();
-                Toast.makeText(
-                        MainActivity.this,
-                        enabled ? "すべての文字を太字にしました" : "文字の太さを標準にしました",
-                        Toast.LENGTH_SHORT
-                ).show();
-                showSettings();
-            }
-        });
-        if (isBoldTextEnabled() == enabled) {
-            button.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
+    private LinearLayout.LayoutParams settingsSizeButtonParams(boolean stacked, boolean middle) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                stacked ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                stacked ? 0f : 1f
+        );
+        if (stacked) {
+            params.setMargins(0, 0, 0, dp(8));
+        } else if (middle) {
+            params.setMargins(dp(8), 0, dp(8), 0);
         }
-        return button;
+        return params;
     }
 
     private void beginScreen(String title, String subtitle) {
-        currentScreenTitle = title;
         FrameLayout screen = new FrameLayout(this);
         screen.addView(new WashiBackgroundView(this), new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        currentScrollView = new ScrollView(this);
-        ScrollView scrollView = currentScrollView;
+        ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
         scrollView.setBackgroundColor(Color.TRANSPARENT);
         scrollView.setPadding(0, getStatusBarHeight(), 0, 0);
         scrollView.setClipToPadding(true);
 
-        root = new BoldAwareLinearLayout(this);
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(18), dp(18), dp(32));
+        root.setPadding(dp(20), dp(20), dp(20), dp(36));
         root.setBackgroundColor(Color.TRANSPARENT);
         scrollView.addView(root, matchWrap());
 
@@ -2592,28 +1955,30 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         titleRow.setLayoutParams(matchWrap());
 
         View accent = new View(this);
-        accent.setBackgroundColor(COLOR_ACCENT);
-        LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(4), dp(34));
+        accent.setBackground(japaneseBox(COLOR_ACCENT, 3, 0, Color.TRANSPARENT));
+        LinearLayout.LayoutParams accentParams = new LinearLayout.LayoutParams(dp(5), dp(36));
         accentParams.setMargins(0, 0, dp(12), 0);
         titleRow.addView(accent, accentParams);
 
         TextView titleView = new TextView(this);
         titleView.setText(title);
-        titleView.setTextSize(32);
+        titleView.setTextSize(scaledTextSize(30));
         titleView.setTextColor(COLOR_TEXT);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setGravity(Gravity.START);
+        titleView.setMaxLines(2);
         titleRow.addView(titleView, new LinearLayout.LayoutParams(
+                0,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                1f
         ));
         root.addView(titleRow);
 
         TextView subtitleView = new TextView(this);
         subtitleView.setText(subtitle);
-        subtitleView.setTextSize(20);
+        subtitleView.setTextSize(scaledTextSize(20));
         subtitleView.setTextColor(COLOR_MUTED);
-        root.addView(subtitleView, matchWrapWithBottom(24));
+        root.addView(subtitleView, matchWrapWithBottom(22));
 
         screen.addView(scrollView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -2631,23 +1996,32 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         button.setText(label);
         button.setTextSize(scaledTextSize(24));
         button.setAllCaps(false);
-        button.setTextColor(Color.WHITE);
         button.setTypeface(Typeface.DEFAULT_BOLD);
-        button.setBackground(japaneseBox(color, 6, 1, COLOR_ACCENT));
+        applyButtonColors(button, color, COLOR_ACCENT);
         button.setGravity(Gravity.CENTER);
         button.setMinHeight(dp(78));
         button.setContentDescription(contentDescription);
         button.setOnClickListener(listener);
         button.setPadding(dp(16), dp(12), dp(16), dp(12));
+        button.setElevation(dp(1));
         button.setLayoutParams(matchWrap());
         return button;
     }
 
     private Button homeFeatureButton(String label, String contentDescription, int color, View.OnClickListener listener) {
         Button button = bigButton(label, contentDescription, color, listener);
-        button.setTextSize(scaledTextSize(21));
-        button.setMinHeight(dp(88));
-        button.setPadding(dp(8), dp(10), dp(8), dp(10));
+        button.setTextSize(scaledTextSize(20));
+        button.setMinHeight(dp(112));
+        button.setSingleLine(false);
+        button.setMaxLines(2);
+        button.setGravity(Gravity.CENTER);
+        button.setLineSpacing(0, 1.05f);
+        button.setPadding(dp(12), dp(18), dp(12), dp(18));
+        int fillColor = blendColors(color, COLOR_CARD, 0.88f);
+        int borderColor = blendColors(color, COLOR_CARD, 0.55f);
+        applyButtonColors(button, fillColor, borderColor);
+        button.setTextColor(color);
+        button.setElevation(0);
         return button;
     }
 
@@ -2675,12 +2049,76 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         button.setText(label);
         button.setTextSize(scaledTextSize(19));
         button.setAllCaps(false);
-        button.setTextColor(Color.WHITE);
-        button.setBackground(japaneseBox(COLOR_SECONDARY, 6, 1, COLOR_LINE));
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        applyButtonColors(button, COLOR_SURFACE_TINT, COLOR_LINE);
+        button.setTextColor(COLOR_TEXT);
         button.setMinHeight(dp(56));
+        button.setPadding(dp(14), dp(10), dp(14), dp(10));
         button.setOnClickListener(listener);
         button.setLayoutParams(matchWrap());
         return button;
+    }
+
+    private void applyButtonColors(Button button, int fillColor, int strokeColor) {
+        button.setTextColor(buttonTextColor(fillColor));
+        StateListDrawable states = new StateListDrawable();
+        int pressedFill = Color.alpha(fillColor) == 0
+                ? Color.argb(28, Color.red(strokeColor), Color.green(strokeColor), Color.blue(strokeColor))
+                : blendColors(fillColor, COLOR_TEXT, 0.12f);
+        states.addState(new int[]{android.R.attr.state_pressed}, japaneseBox(pressedFill, 14, 1, strokeColor));
+        states.addState(new int[]{-android.R.attr.state_enabled},
+                japaneseBox(blendColors(fillColor, COLOR_BG, 0.45f), 14, 1, COLOR_LINE));
+        states.addState(new int[]{}, japaneseBox(fillColor, 14, 1, strokeColor));
+        button.setBackground(states);
+    }
+
+    private int buttonTextColor(int fillColor) {
+        int brightness = (Color.red(fillColor) * 299 + Color.green(fillColor) * 587 + Color.blue(fillColor) * 114) / 1000;
+        return brightness >= 135 ? COLOR_TEXT : Color.WHITE;
+    }
+
+    private int blendColors(int fromColor, int toColor, float amount) {
+        float safeAmount = Math.max(0f, Math.min(1f, amount));
+        int alpha = Math.round(Color.alpha(fromColor) + (Color.alpha(toColor) - Color.alpha(fromColor)) * safeAmount);
+        int red = Math.round(Color.red(fromColor) + (Color.red(toColor) - Color.red(fromColor)) * safeAmount);
+        int green = Math.round(Color.green(fromColor) + (Color.green(toColor) - Color.green(fromColor)) * safeAmount);
+        int blue = Math.round(Color.blue(fromColor) + (Color.blue(toColor) - Color.blue(fromColor)) * safeAmount);
+        return Color.argb(alpha, red, green, blue);
+    }
+
+    private void configureLargeInputField(EditText input, String hint, int inputType) {
+        input.setTextSize(scaledTextSize(24));
+        input.setTextColor(COLOR_TEXT);
+        input.setHintTextColor(COLOR_MUTED);
+        input.setHint(hint);
+        input.setInputType(inputType);
+        input.setPadding(dp(14), dp(10), dp(14), dp(10));
+        input.setBackground(inputBackground());
+        if (prefersSingleColumnLayout()) {
+            input.setSingleLine(false);
+            input.setMaxLines(2);
+            input.setHorizontallyScrolling(false);
+            input.setMinHeight(dp(92));
+        } else {
+            input.setSingleLine(true);
+            input.setMinHeight(dp(72));
+        }
+    }
+
+    private void setInitialInputText(EditText input, String value) {
+        if (value == null || value.isEmpty()) {
+            return;
+        }
+        input.setText(value);
+        input.setSelection(value.length());
+    }
+
+    private LinearLayout permissionCard(String title, String message, String buttonLabel, View.OnClickListener listener) {
+        LinearLayout card = card();
+        card.addView(sectionTitle(title));
+        card.addView(bodyText(message));
+        card.addView(smallButton(buttonLabel, listener));
+        return card;
     }
 
     private LinearLayout timeAdjustRow(String label) {
@@ -2697,7 +2135,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
 
     private Button timeAdjustButton(String label, String contentDescription, View.OnClickListener listener) {
         Button button = smallButton(label, listener);
-        button.setTextSize(24);
+        button.setTextSize(scaledTextSize(24));
         button.setContentDescription(contentDescription);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(72), 1f);
         params.setMargins(dp(6), dp(6), dp(6), dp(6));
@@ -2705,8 +2143,45 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return button;
     }
 
+    private Button dateAdjustButton(String label, String contentDescription, View.OnClickListener listener) {
+        Button button = smallButton(label, listener);
+        button.setTextSize(scaledTextSize(18));
+        button.setContentDescription(contentDescription);
+        button.setMinHeight(dp(64));
+        return button;
+    }
+
+    private LinearLayout.LayoutParams weightedDateButtonParams(boolean stacked) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                stacked ? LinearLayout.LayoutParams.MATCH_PARENT : 0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                stacked ? 0f : 1f
+        );
+        params.setMargins(dp(6), dp(6), dp(6), dp(6));
+        return params;
+    }
+
     private void updateTimeDisplay(TextView display, int hour, int minute) {
         display.setText(String.format(Locale.JAPAN, "%02d:%02d", hour, minute));
+    }
+
+    private void updateEventDateDisplay(TextView display) {
+        Calendar calendar = draftEventDateCalendar();
+        String[] weekdays = {"日", "月", "火", "水", "木", "金", "土"};
+        int year = calendar.get(Calendar.YEAR);
+        int month = calendar.get(Calendar.MONTH) + 1;
+        int day = calendar.get(Calendar.DAY_OF_MONTH);
+        String weekday = weekdays[calendar.get(Calendar.DAY_OF_WEEK) - 1];
+        int offset = daysFromToday(calendar);
+        String suffix;
+        if (offset == 0) {
+            suffix = "今日";
+        } else if (offset == 1) {
+            suffix = "明日";
+        } else {
+            suffix = offset + "日後";
+        }
+        display.setText(String.format(Locale.JAPAN, "%d年%d月%d日（%s）\n%s", year, month, day, weekday, suffix));
     }
 
     private void prepareDraftEventTime() {
@@ -2714,6 +2189,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             return;
         }
         Calendar initialTime = Calendar.getInstance(Locale.JAPAN);
+        initialTime.set(Calendar.SECOND, 0);
+        initialTime.set(Calendar.MILLISECOND, 0);
+        initialTime.add(Calendar.MINUTE, 10);
         draftEventHour = initialTime.get(Calendar.HOUR_OF_DAY);
         draftEventMinute = initialTime.get(Calendar.MINUTE);
     }
@@ -2721,6 +2199,52 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private void resetDraftEventTime() {
         draftEventHour = -1;
         draftEventMinute = -1;
+        draftEventDateMillis = -1L;
+        draftEventTitle = "";
+    }
+
+    private void prepareDraftEventDate() {
+        if (draftEventDateMillis > 0L) {
+            return;
+        }
+        draftEventDateMillis = startOfToday().getTimeInMillis();
+    }
+
+    private void setDraftEventDateDaysFromToday(int daysFromToday) {
+        Calendar calendar = startOfToday();
+        calendar.add(Calendar.DAY_OF_YEAR, daysFromToday);
+        draftEventDateMillis = calendar.getTimeInMillis();
+    }
+
+    private void shiftDraftEventDate(int deltaDays) {
+        Calendar calendar = draftEventDateCalendar();
+        calendar.add(Calendar.DAY_OF_YEAR, deltaDays);
+        Calendar today = startOfToday();
+        if (calendar.before(today)) {
+            calendar = today;
+        }
+        draftEventDateMillis = calendar.getTimeInMillis();
+    }
+
+    private Calendar draftEventDateCalendar() {
+        prepareDraftEventDate();
+        Calendar calendar = Calendar.getInstance(Locale.JAPAN);
+        calendar.setTimeInMillis(draftEventDateMillis);
+        return calendar;
+    }
+
+    private Calendar startOfToday() {
+        Calendar calendar = Calendar.getInstance(Locale.JAPAN);
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        return calendar;
+    }
+
+    private int daysFromToday(Calendar target) {
+        long diff = target.getTimeInMillis() - startOfToday().getTimeInMillis();
+        return (int) (diff / (24L * 60L * 60L * 1000L));
     }
 
     private void prepareDraftMedicineTime() {
@@ -2728,6 +2252,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             return;
         }
         Calendar initialTime = Calendar.getInstance(Locale.JAPAN);
+        initialTime.set(Calendar.SECOND, 0);
+        initialTime.set(Calendar.MILLISECOND, 0);
+        initialTime.add(Calendar.MINUTE, 10);
         draftMedicineHour = initialTime.get(Calendar.HOUR_OF_DAY);
         draftMedicineMinute = initialTime.get(Calendar.MINUTE);
     }
@@ -2735,6 +2262,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private void resetDraftMedicineTime() {
         draftMedicineHour = -1;
         draftMedicineMinute = -1;
+        draftMedicineName = "";
     }
 
     private Button backButton() {
@@ -2792,12 +2320,16 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private LinearLayout card() {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(16), dp(14), dp(16), dp(16));
-        card.setBackground(japaneseBox(COLOR_CARD, 6, 1, COLOR_LINE));
-        card.setElevation(dp(1));
+        card.setPadding(dp(18), dp(16), dp(18), dp(18));
+        card.setBackground(japaneseBox(COLOR_CARD, 18, 1, COLOR_LINE));
+        card.setElevation(dp(2));
         card.setMinimumHeight(dp(96));
-        card.setLayoutParams(matchWrapWithBottom(14));
+        card.setLayoutParams(matchWrapWithBottom(16));
         return card;
+    }
+
+    private GradientDrawable inputBackground() {
+        return japaneseBox(COLOR_CARD, 14, 1, COLOR_LINE);
     }
 
     private GradientDrawable japaneseBox(int fillColor, int radiusDp, int strokeDp, int strokeColor) {
@@ -2836,39 +2368,104 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         return prefs().getFloat(KEY_TEXT_SCALE, 1.0f);
     }
 
-    private boolean isBoldTextEnabled() {
-        return prefs().getBoolean(KEY_BOLD_TEXT, false);
-    }
-
-    private void applyGlobalBold(View view) {
-        if (!isBoldTextEnabled() || view == null) {
-            return;
-        }
-        if (view instanceof TextView) {
-            ((TextView) view).setTypeface(Typeface.DEFAULT_BOLD);
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                applyGlobalBold(group.getChildAt(i));
-            }
-        }
-    }
-
-    private void applyGlobalBold(AlertDialog dialog) {
-        if (dialog != null && dialog.getWindow() != null) {
-            applyGlobalBold(dialog.getWindow().getDecorView());
-        }
-    }
-
     private float scaledTextSize(float baseSize) {
         return baseSize * textScale();
     }
 
+    private float scaledCanvasTextSize(float baseSp) {
+        return scaledTextSize(baseSp) * getResources().getDisplayMetrics().scaledDensity;
+    }
+
+    private boolean prefersSingleColumnLayout() {
+        float systemFontScale = getResources().getConfiguration().fontScale;
+        return textScale() * systemFontScale >= 1.18f;
+    }
+
+    private boolean navigateBackWithinApp() {
+        switch (currentScreen) {
+            case HOME:
+            case ONBOARDING_TEXT_SIZE:
+                return false;
+            case EVENT_FORM:
+                resetDraftEventTime();
+                showCalendar();
+                return true;
+            case MEDICINE_FORM:
+                resetDraftMedicineTime();
+                showMedicines();
+                return true;
+            case ONBOARDING_EMERGENCY:
+                showOnboardingTextSize();
+                return true;
+            case ONBOARDING_MEDICINE:
+                resetDraftMedicineTime();
+                showOnboardingEmergency();
+                return true;
+            default:
+                showHome();
+                return true;
+        }
+    }
+
+    private void refreshCurrentScreen() {
+        switch (currentScreen) {
+            case STEP_COUNTER:
+                showStepCounter();
+                return;
+            case WALKING_ALARM:
+                showWalkingAlarm();
+                return;
+            case NOTES:
+                showNotes();
+                return;
+            case CALENDAR:
+                showCalendar();
+                return;
+            case EVENT_FORM:
+                showEventForm();
+                return;
+            case MEDICINES:
+                showMedicines();
+                return;
+            case MEDICINE_FORM:
+                showMedicineDialog();
+                return;
+            case EMERGENCY:
+                showEmergency();
+                return;
+            case TODOS:
+                showTodos();
+                return;
+            case SHOPPING:
+                showShopping();
+                return;
+            case PREMIUM:
+                showPremiumScreen();
+                return;
+            case SETTINGS:
+                showSettings();
+                return;
+            case ONBOARDING_TEXT_SIZE:
+                showOnboardingTextSize();
+                return;
+            case ONBOARDING_EMERGENCY:
+                showOnboardingEmergency();
+                return;
+            case ONBOARDING_MEDICINE:
+                showOnboardingMedicine();
+                return;
+            case HOME:
+            default:
+                showHome();
+        }
+    }
+
     private int getStatusBarHeight() {
-        int resourceId = getResources().getIdentifier("status_bar_height", "dimen", "android");
-        if (resourceId > 0) {
-            return getResources().getDimensionPixelSize(resourceId);
+        if (getWindow() != null && getWindow().getDecorView() != null) {
+            android.view.WindowInsets insets = getWindow().getDecorView().getRootWindowInsets();
+            if (insets != null) {
+                return insets.getSystemWindowInsetTop();
+            }
         }
         return dp(24);
     }
@@ -2957,10 +2554,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                     items.add(new ShoppingItem(
                             object.optString("name", ""),
                             object.optString("amount", ""),
+                            object.optString("number", ""),
                             object.optBoolean("bought", false)
                     ));
                 } else {
-                    items.add(new ShoppingItem(String.valueOf(value), "", false));
+                    items.add(new ShoppingItem(String.valueOf(value), "", "", false));
                 }
             }
         } catch (JSONException ignored) {
@@ -3004,81 +2602,13 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             try {
                 object.put("name", item.name);
                 object.put("amount", item.amount);
+                object.put("number", item.number);
                 object.put("bought", item.bought);
                 array.put(object);
             } catch (JSONException ignored) {
             }
         }
         prefs().edit().putString(KEY_SHOPPING, array.toString()).apply();
-    }
-
-    private List<FamilyContact> loadFamilyContacts() {
-        List<FamilyContact> contacts = new ArrayList<>();
-        String raw = prefs().getString(KEY_FAMILY_CONTACTS, "");
-        if (!raw.isEmpty()) {
-            try {
-                JSONArray array = new JSONArray(raw);
-                for (int i = 0; i < array.length(); i++) {
-                    JSONObject item = array.getJSONObject(i);
-                    String phone = item.optString("phone", "").trim();
-                    if (!phone.isEmpty()) {
-                        contacts.add(new FamilyContact(item.optString("name", ""), phone));
-                    }
-                }
-            } catch (JSONException ignored) {
-                prefs().edit().remove(KEY_FAMILY_CONTACTS).apply();
-            }
-        }
-        if (contacts.isEmpty()) {
-            String legacyPhone = prefs().getString(KEY_EMERGENCY_PHONE, "").trim();
-            if (!legacyPhone.isEmpty()) {
-                contacts.add(new FamilyContact(prefs().getString(KEY_EMERGENCY_NAME, ""), legacyPhone));
-                saveFamilyContacts(contacts);
-            }
-        }
-        int limit = isPremiumActive() ? 5 : 1;
-        if (contacts.size() > limit) {
-            return new ArrayList<>(contacts.subList(0, limit));
-        }
-        return contacts;
-    }
-
-    private void saveFamilyContact(int index, FamilyContact contact) {
-        List<FamilyContact> contacts = loadFamilyContacts();
-        int limit = isPremiumActive() ? 5 : 1;
-        if (index >= 0 && index < contacts.size()) {
-            contacts.set(index, contact);
-        } else {
-            if (contacts.size() >= limit) {
-                return;
-            }
-            contacts.add(contact);
-        }
-        saveFamilyContacts(contacts);
-    }
-
-    private void deleteFamilyContact(int index) {
-        List<FamilyContact> contacts = loadFamilyContacts();
-        if (index >= 0 && index < contacts.size()) {
-            contacts.remove(index);
-            saveFamilyContacts(contacts);
-        }
-    }
-
-    private void saveFamilyContacts(List<FamilyContact> contacts) {
-        JSONArray array = new JSONArray();
-        int limit = isPremiumActive() ? 5 : 1;
-        for (int i = 0; i < contacts.size() && i < limit; i++) {
-            FamilyContact contact = contacts.get(i);
-            JSONObject object = new JSONObject();
-            try {
-                object.put("name", contact.name);
-                object.put("phone", contact.phone);
-                array.put(object);
-            } catch (JSONException ignored) {
-            }
-        }
-        prefs().edit().putString(KEY_FAMILY_CONTACTS, array.toString()).apply();
     }
 
     private List<TodoItem> loadTodos() {
@@ -3179,6 +2709,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         } catch (JSONException ignored) {
             prefs().edit().remove(KEY_EVENTS).apply();
         }
+        sortCalendarEvents(events);
         return events;
     }
 
@@ -3200,7 +2731,9 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private void confirmEvent(int index) {
         List<CalendarEvent> events = loadEvents();
         if (index >= 0 && index < events.size()) {
-            events.get(index).confirmed = true;
+            CalendarEvent event = events.get(index);
+            cancelEventAlarm(event);
+            event.confirmed = true;
             saveEvents(events);
             Toast.makeText(this, "確認しました", Toast.LENGTH_SHORT).show();
         }
@@ -3238,7 +2771,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         } catch (JSONException ignored) {
             prefs().edit().remove(key).apply();
         }
+        sortCalendarEvents(items);
         return items;
+    }
+
+    private void sortCalendarEvents(List<CalendarEvent> items) {
+        Collections.sort(items, new Comparator<CalendarEvent>() {
+            @Override
+            public int compare(CalendarEvent first, CalendarEvent second) {
+                return Long.compare(first.timeMillis, second.timeMillis);
+            }
+        });
     }
 
     private void addTimedItem(String key, CalendarEvent event) {
@@ -3262,6 +2805,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             return;
         }
         CalendarEvent item = items.get(index);
+        cancelEventAlarm(item);
         if (moveToTomorrow) {
             Calendar time = Calendar.getInstance(Locale.JAPAN);
             time.setTimeInMillis(item.timeMillis);
@@ -3313,107 +2857,293 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void scheduleAllEventAlarms() {
-        List<CalendarEvent> events = loadEvents();
-        long now = System.currentTimeMillis();
-        for (CalendarEvent event : events) {
-            if (!event.confirmed && event.timeMillis > now) {
-                scheduleEventAlarm(event);
-            }
-        }
-        List<CalendarEvent> medicines = loadTimedList(KEY_MEDICINES);
-        for (CalendarEvent medicine : medicines) {
-            if (!medicine.confirmed && medicine.timeMillis > now) {
-                scheduleEventAlarm(medicine);
-            }
-        }
+        AlarmScheduler.rescheduleAll(this);
     }
 
     private void scheduleEventAlarm(CalendarEvent event) {
-        if (event.timeMillis <= System.currentTimeMillis()) {
-            return;
-        }
-        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
-        if (alarmManager == null) {
-            return;
-        }
-        PendingIntent pendingIntent = eventAlarmPendingIntent(event);
-        try {
-            if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, event.timeMillis, pendingIntent);
-            } else if (Build.VERSION.SDK_INT >= 23) {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, event.timeMillis, pendingIntent);
-            } else {
-                alarmManager.setExact(AlarmManager.RTC_WAKEUP, event.timeMillis, pendingIntent);
-            }
-        } catch (SecurityException ignored) {
-            alarmManager.set(AlarmManager.RTC_WAKEUP, event.timeMillis, pendingIntent);
-        }
+        AlarmScheduler.schedule(this, event.title, event.timeMillis);
     }
 
     private void cancelEventAlarm(CalendarEvent event) {
-        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
-        if (alarmManager != null) {
-            alarmManager.cancel(eventAlarmPendingIntent(event));
-        }
+        AlarmScheduler.cancel(this, event.title, event.timeMillis);
     }
 
-    private PendingIntent eventAlarmPendingIntent(CalendarEvent event) {
-        Intent intent = new Intent(this, EventAlarmReceiver.class);
-        intent.putExtra(EventAlarmReceiver.EXTRA_TITLE, event.title);
-        intent.putExtra(EventAlarmReceiver.EXTRA_TIME, formatEventTime(event.timeMillis));
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-        if (Build.VERSION.SDK_INT >= 23) {
-            flags |= PendingIntent.FLAG_IMMUTABLE;
+    private boolean hasActiveWalkingAlarm() {
+        clearExpiredWalkingAlarm();
+        return prefs().getBoolean(KEY_WALKING_ALARM_ACTIVE, false)
+                && prefs().getLong(KEY_WALKING_ALARM_TIME, 0L) > System.currentTimeMillis();
+    }
+
+    private long walkingAlarmTimeMillis() {
+        return prefs().getLong(KEY_WALKING_ALARM_TIME, 0L);
+    }
+
+    private void startWalkingAlarmFlow(int minutes) {
+        long scheduledTimeMillis = System.currentTimeMillis() + minutes * 60_000L;
+        if (!hasNotificationPermission()) {
+            pendingWalkingAlarmMinutes = minutes;
+            pendingWalkingAlarmTimeMillis = scheduledTimeMillis;
+            requestNotificationPermission();
+            return;
         }
-        return PendingIntent.getBroadcast(this, event.alarmId(), intent, flags);
+        if (!hasExactAlarmAccess()) {
+            pendingWalkingAlarmMinutes = minutes;
+            pendingWalkingAlarmTimeMillis = scheduledTimeMillis;
+            requestExactAlarmAccess();
+            return;
+        }
+        saveWalkingAlarm(minutes, scheduledTimeMillis);
+        Toast.makeText(this, minutes + "分後に歩行アラームを設定しました", Toast.LENGTH_LONG).show();
+        showWalkingAlarm();
+    }
+
+    private void saveWalkingAlarm(int minutes, long timeMillis) {
+        long previousTime = prefs().getLong(KEY_WALKING_ALARM_TIME, 0L);
+        boolean wasActive = prefs().getBoolean(KEY_WALKING_ALARM_ACTIVE, false);
+        if (wasActive && previousTime > 0L) {
+            AlarmScheduler.cancel(this, WALKING_ALARM_TITLE, previousTime);
+        }
+        prefs().edit()
+                .putBoolean(KEY_WALKING_ALARM_ACTIVE, true)
+                .putLong(KEY_WALKING_ALARM_TIME, timeMillis)
+                .putInt(KEY_WALKING_ALARM_MINUTES, minutes)
+                .apply();
+        AlarmScheduler.schedule(this, WALKING_ALARM_TITLE, timeMillis);
+    }
+
+    private void cancelWalkingAlarm() {
+        long timeMillis = prefs().getLong(KEY_WALKING_ALARM_TIME, 0L);
+        if (timeMillis > 0L) {
+            AlarmScheduler.cancel(this, WALKING_ALARM_TITLE, timeMillis);
+        }
+        prefs().edit()
+                .putBoolean(KEY_WALKING_ALARM_ACTIVE, false)
+                .remove(KEY_WALKING_ALARM_TIME)
+                .remove(KEY_WALKING_ALARM_MINUTES)
+                .apply();
     }
 
     private void createEventAlarmChannel() {
-        if (Build.VERSION.SDK_INT < 26) {
-            return;
-        }
-        NotificationChannel channel = new NotificationChannel(
-                EventAlarmReceiver.CHANNEL_ID,
-                "予定アラーム",
-                NotificationManager.IMPORTANCE_HIGH
-        );
-        channel.setDescription("予定の時間を通知音でお知らせします");
-        channel.enableVibration(true);
-        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (manager != null) {
-            manager.createNotificationChannel(channel);
-        }
+        EventAlarmReceiver.ensureNotificationChannel(this);
     }
 
-    private void requestNeededPermissions() {
-        List<String> permissions = new ArrayList<>();
-        if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+    private boolean needsActivityRecognitionPermission() {
+        return stepCounterSensor != null
+                && Build.VERSION.SDK_INT >= 29
+                && checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasNotificationPermission() {
+        return Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasExactAlarmAccess() {
+        if (Build.VERSION.SDK_INT < 31) {
+            return true;
         }
-        if (Build.VERSION.SDK_INT >= 29
-                && checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACTIVITY_RECOGNITION);
+        AppOpsManager appOpsManager = getSystemService(AppOpsManager.class);
+        if (appOpsManager != null) {
+            int mode = appOpsManager.unsafeCheckOpNoThrow(
+                    APP_OP_SCHEDULE_EXACT_ALARM,
+                    android.os.Process.myUid(),
+                    getPackageName()
+            );
+            if (mode == AppOpsManager.MODE_ALLOWED) {
+                return true;
+            }
+            if (mode == AppOpsManager.MODE_DEFAULT || mode == AppOpsManager.MODE_IGNORED) {
+                return false;
+            }
         }
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        return alarmManager == null || alarmManager.canScheduleExactAlarms();
+    }
+
+    private void requestActivityRecognitionPermission() {
+        if (!needsActivityRecognitionPermission()) {
+            return;
         }
-        if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        prefs().edit().putBoolean(KEY_ACTIVITY_PERMISSION_ASKED, true).apply();
+        requestPermissions(new String[]{Manifest.permission.ACTIVITY_RECOGNITION}, REQUEST_ACTIVITY_RECOGNITION);
+    }
+
+    private void requestNotificationPermission() {
+        if (hasNotificationPermission()) {
+            return;
         }
-        if (!permissions.isEmpty()) {
-            requestPermissions(permissions.toArray(new String[0]), 40);
+        prefs().edit().putBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, true).apply();
+        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
+    }
+
+    private String activityPermissionActionLabel() {
+        return shouldOpenActivityPermissionSettings() ? "設定を開く" : "許可する";
+    }
+
+    private void handleActivityPermissionAction() {
+        if (shouldOpenActivityPermissionSettings()) {
+            openAppSettings("歩数の設定を開きました");
+            return;
         }
+        requestActivityRecognitionPermission();
+    }
+
+    private boolean shouldOpenActivityPermissionSettings() {
+        return needsActivityRecognitionPermission()
+                && prefs().getBoolean(KEY_ACTIVITY_PERMISSION_ASKED, false);
+    }
+
+    private String notificationPermissionActionLabel() {
+        return shouldOpenNotificationPermissionSettings() ? "設定を開く" : "許可する";
+    }
+
+    private void handleNotificationPermissionAction() {
+        if (shouldOpenNotificationPermissionSettings()) {
+            openAppSettings("通知の設定を開きました");
+            return;
+        }
+        requestNotificationPermission();
+    }
+
+    private boolean shouldOpenNotificationPermissionSettings() {
+        return Build.VERSION.SDK_INT >= 33
+                && !hasNotificationPermission()
+                && prefs().getBoolean(KEY_NOTIFICATION_PERMISSION_ASKED, false);
+    }
+
+    private void openAppSettings(String message) {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        startActivity(intent);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private void requestExactAlarmAccess() {
+        if (hasExactAlarmAccess() || Build.VERSION.SDK_INT < 31) {
+            return;
+        }
+        Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+        intent.setData(Uri.parse("package:" + getPackageName()));
+        if (intent.resolveActivity(getPackageManager()) == null) {
+            intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+        }
+        startActivity(intent);
+        Toast.makeText(this, "アラームの特別な許可を開きました", Toast.LENGTH_LONG).show();
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 30 || requestCode == 40) {
+        if (requestCode == REQUEST_ACTIVITY_RECOGNITION) {
+            if (needsActivityRecognitionPermission()) {
+                Toast.makeText(this, "歩数の許可は後から設定で変更できます", Toast.LENGTH_LONG).show();
+            }
             registerStepSensor();
             updateStepCounterText();
-            fetchWeather();
+            refreshCurrentScreen();
+            return;
         }
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            if (hasNotificationPermission() && pendingReminderSave != null) {
+                if (hasExactAlarmAccess()) {
+                    completePendingReminderSave();
+                } else {
+                    requestExactAlarmAccess();
+                }
+                return;
+            }
+            if (hasNotificationPermission() && pendingWalkingAlarmTimeMillis != null && pendingWalkingAlarmMinutes > 0) {
+                if (hasExactAlarmAccess()) {
+                    completePendingWalkingAlarm();
+                } else {
+                    requestExactAlarmAccess();
+                }
+                return;
+            }
+            if (pendingReminderSave != null) {
+                clearPendingReminderSave();
+                Toast.makeText(this, "通知を許可すると予定や薬のお知らせを保存できます。後から設定で変更できます", Toast.LENGTH_LONG).show();
+            }
+            if (pendingWalkingAlarmTimeMillis != null) {
+                clearPendingWalkingAlarm();
+                Toast.makeText(this, "通知を許可すると歩行アラームを保存できます。後から設定で変更できます", Toast.LENGTH_LONG).show();
+            }
+            if (pendingReminderSave == null && pendingWalkingAlarmTimeMillis == null) {
+                Toast.makeText(this, "通知の許可は後から設定で変更できます", Toast.LENGTH_LONG).show();
+            }
+            refreshCurrentScreen();
+        }
+    }
+
+    private void queuePendingReminderSave(String key, CalendarEvent event, boolean finishOnboardingAfterSave) {
+        pendingReminderSave = new PendingReminderSave(key, event, finishOnboardingAfterSave);
+        if (!hasNotificationPermission()) {
+            requestNotificationPermission();
+            return;
+        }
+        if (!hasExactAlarmAccess()) {
+            requestExactAlarmAccess();
+        }
+    }
+
+    private void resumePendingAlarmSetup() {
+        if (pendingReminderSave != null && hasNotificationPermission() && hasExactAlarmAccess()) {
+            completePendingReminderSave();
+            return;
+        }
+        if (pendingWalkingAlarmTimeMillis != null
+                && pendingWalkingAlarmMinutes > 0
+                && hasNotificationPermission()
+                && hasExactAlarmAccess()) {
+            completePendingWalkingAlarm();
+        }
+    }
+
+    private void completePendingReminderSave() {
+        if (pendingReminderSave == null) {
+            return;
+        }
+        PendingReminderSave pending = pendingReminderSave;
+        clearPendingReminderSave();
+        if (KEY_EVENTS.equals(pending.key)) {
+            addEvent(pending.event);
+            scheduleEventAlarm(pending.event);
+            resetDraftEventTime();
+            Toast.makeText(this, "予定アラームを保存しました", Toast.LENGTH_LONG).show();
+            showCalendar();
+            return;
+        }
+        addTimedItem(pending.key, pending.event);
+        scheduleEventAlarm(pending.event);
+        resetDraftMedicineTime();
+        if (pending.finishOnboarding) {
+            finishOnboarding();
+        } else {
+            Toast.makeText(this, "薬アラームを保存しました", Toast.LENGTH_LONG).show();
+            showMedicines();
+        }
+    }
+
+    private void clearPendingReminderSave() {
+        pendingReminderSave = null;
+    }
+
+    private void completePendingWalkingAlarm() {
+        if (pendingWalkingAlarmTimeMillis == null || pendingWalkingAlarmMinutes <= 0) {
+            return;
+        }
+        int minutes = pendingWalkingAlarmMinutes;
+        long timeMillis = pendingWalkingAlarmTimeMillis;
+        clearPendingWalkingAlarm();
+        saveWalkingAlarm(minutes, timeMillis);
+        Toast.makeText(this, minutes + "分後に歩行アラームを設定しました", Toast.LENGTH_LONG).show();
+        showWalkingAlarm();
+    }
+
+    private void clearPendingWalkingAlarm() {
+        pendingWalkingAlarmTimeMillis = null;
+        pendingWalkingAlarmMinutes = -1;
     }
 
     private String buildTodaySpeech() {
@@ -3438,14 +3168,17 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 builder.append(formatEventTimeOnly(medicine.timeMillis)).append("、").append(medicine.title).append("。");
             }
         }
-        List<TodoItem> todos = remainingTodos();
-        if (todos.isEmpty()) {
+        List<TodoItem> todos = loadTodos();
+        int remaining = 0;
+        for (TodoItem todo : todos) {
+            if (!todo.done) {
+                remaining++;
+            }
+        }
+        if (remaining == 0) {
             builder.append("今日やることはありません。");
         } else {
-            builder.append("今日やることは、");
-            for (TodoItem todo : todos) {
-                builder.append(todo.text).append("。");
-            }
+            builder.append("今日やることは、残り").append(remaining).append("件です。");
         }
         return builder.toString();
     }
@@ -3459,35 +3192,28 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     }
 
     private void shareToFamily(String message) {
-        List<FamilyContact> contacts = loadFamilyContacts();
-        if (contacts.isEmpty()) {
-            Intent intent = new Intent(Intent.ACTION_SEND);
+        String phone = prefs().getString(KEY_EMERGENCY_PHONE, "");
+        Intent intent;
+        if (phone.isEmpty()) {
+            intent = new Intent(Intent.ACTION_SEND);
             intent.setType("text/plain");
             intent.putExtra(Intent.EXTRA_TEXT, message);
-            startActivity(Intent.createChooser(intent, "家族へ共有"));
-            return;
-        }
-        if (isPremiumActive() && contacts.size() > 1) {
-            String[] names = new String[contacts.size()];
-            for (int i = 0; i < contacts.size(); i++) {
-                FamilyContact contact = contacts.get(i);
-                names[i] = contact.name.isEmpty() ? contact.phone : contact.name + "  " + contact.phone;
+        } else {
+            intent = new Intent(Intent.ACTION_SENDTO);
+            intent.setData(Uri.parse("smsto:" + phone));
+            intent.putExtra("sms_body", message);
+            if (intent.resolveActivity(getPackageManager()) == null) {
+                intent = new Intent(Intent.ACTION_SEND);
+                intent.setType("text/plain");
+                intent.putExtra(Intent.EXTRA_TEXT, message);
             }
-            new AlertDialog.Builder(this)
-                    .setTitle("送る家族を選ぶ")
-                    .setItems(names, (dialog, which) -> sendSummaryToFamilyContact(contacts.get(which), message))
-                    .setNegativeButton("キャンセル", null)
-                    .show();
+        }
+        Intent chooser = Intent.createChooser(intent, "家族へ共有");
+        if (chooser.resolveActivity(getPackageManager()) == null) {
+            Toast.makeText(this, "共有できるアプリが見つかりません", Toast.LENGTH_LONG).show();
             return;
         }
-        sendSummaryToFamilyContact(contacts.get(0), message);
-    }
-
-    private void sendSummaryToFamilyContact(FamilyContact contact, String message) {
-        Intent intent = new Intent(Intent.ACTION_SENDTO);
-        intent.setData(Uri.parse("smsto:" + contact.phone));
-        intent.putExtra("sms_body", message);
-        startActivity(Intent.createChooser(intent, "家族へ共有"));
+        startActivity(chooser);
     }
 
     private JSONObject backupObject() {
@@ -3500,7 +3226,6 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             object.put("medicines", new JSONArray(prefs().getString(KEY_MEDICINES, "[]")));
             object.put("todos", new JSONArray(prefs().getString(KEY_TODOS, "[]")));
             object.put("shopping", new JSONArray(prefs().getString(KEY_SHOPPING, "[]")));
-            object.put("familyContacts", new JSONArray(prefs().getString(KEY_FAMILY_CONTACTS, "[]")));
             object.put("emergencyName", prefs().getString(KEY_EMERGENCY_NAME, ""));
             object.put("emergencyPhone", prefs().getString(KEY_EMERGENCY_PHONE, ""));
         } catch (JSONException ignored) {
@@ -3513,7 +3238,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         intent.setType("text/plain");
         intent.putExtra(Intent.EXTRA_SUBJECT, "まいにちサポート バックアップ");
         intent.putExtra(Intent.EXTRA_TEXT, backupObject().toString());
-        startActivity(Intent.createChooser(intent, "バックアップを共有"));
+        Intent chooser = Intent.createChooser(intent, "バックアップを共有");
+        if (chooser.resolveActivity(getPackageManager()) == null) {
+            Toast.makeText(this, "共有できるアプリが見つかりません", Toast.LENGTH_LONG).show();
+            return;
+        }
+        startActivity(chooser);
     }
 
     private void copyBackup() {
@@ -3531,25 +3261,11 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
     }
 
-    private void moveFromKeyboardToSection(EditText input, View section) {
-        input.clearFocus();
-        hideKeyboard(input);
-        section.setFocusableInTouchMode(true);
-        section.requestFocus();
-        ScrollView scrollView = currentScrollView;
-        LinearLayout screenRoot = root;
-        if (scrollView == null || screenRoot == null) {
-            return;
-        }
-        scrollView.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                Rect sectionBounds = new Rect();
-                section.getDrawingRect(sectionBounds);
-                screenRoot.offsetDescendantRectToMyCoords(section, sectionBounds);
-                scrollView.smoothScrollTo(0, Math.max(0, sectionBounds.top - dp(16)));
-            }
-        }, 250L);
+    private void showInputError(EditText input, String message) {
+        input.setError(message);
+        input.requestFocus();
+        showKeyboard(input);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
     private void showKeyboard(final View view) {
@@ -3565,35 +3281,45 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }, 250L);
     }
 
-    private boolean isPremiumActive() {
-        return prefs().getBoolean(KEY_PREMIUM_ACTIVE, false);
+    private void styleDialogButtons(AlertDialog dialog) {
+        styleDialogButton(dialog.getButton(AlertDialog.BUTTON_POSITIVE));
+        styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEGATIVE));
+        styleDialogButton(dialog.getButton(AlertDialog.BUTTON_NEUTRAL));
     }
 
-    private PlayBillingManager.PremiumPlan premiumPlan() {
-        String value = prefs().getString(KEY_PREMIUM_PLAN, PlayBillingManager.PremiumPlan.NONE.name());
-        try {
-            return PlayBillingManager.PremiumPlan.valueOf(value);
-        } catch (IllegalArgumentException exception) {
-            return PlayBillingManager.PremiumPlan.NONE;
+    private void styleDialogButton(Button button) {
+        if (button == null) {
+            return;
         }
+        button.setAllCaps(false);
+        button.setTextSize(Math.min(22f, scaledTextSize(17f)));
+        button.setSingleLine(false);
+        button.setMaxLines(2);
+        button.setGravity(Gravity.CENTER);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setPadding(dp(8), button.getPaddingTop(), dp(8), button.getPaddingBottom());
+    }
+
+    private boolean isPremiumActive() {
+        return prefs().getBoolean(KEY_PREMIUM_ACTIVE, false);
     }
 
     private boolean isOnboardingDone() {
         return prefs().getBoolean(KEY_ONBOARDING_DONE, false);
     }
 
-    private void migrateFromTestPremium() {
-        if (!prefs().getBoolean(KEY_REAL_BILLING_MIGRATED, false)) {
-            prefs().edit()
-                    .putBoolean(KEY_PREMIUM_ACTIVE, false)
-                    .putString(KEY_PREMIUM_PLAN, PlayBillingManager.PremiumPlan.NONE.name())
-                    .putBoolean(KEY_REAL_BILLING_MIGRATED, true)
-                    .apply();
-        }
+    private void showPremiumUnavailable() {
+        Toast.makeText(this, "お申し込み機能は現在準備中です", Toast.LENGTH_LONG).show();
     }
 
     private void schedulePremiumPrompt() {
-        if (!billingStateChecked || !isOnboardingDone() || isPremiumActive() || premiumPromptShown || premiumPromptScheduled) {
+        if (currentScreen != Screen.HOME
+                || !isOnboardingDone()
+                || isPremiumActive()
+                || premiumPromptShown
+                || premiumPromptScheduled
+                || wasPremiumPromptShownRecently()) {
             return;
         }
         premiumPromptScheduled = true;
@@ -3601,28 +3327,105 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             @Override
             public void run() {
                 premiumPromptScheduled = false;
-                showPremiumPrompt();
+                if (currentScreen == Screen.HOME) {
+                    showPremiumPrompt();
+                }
             }
         }, 5000L);
     }
 
     private void showPremiumPrompt() {
-        premiumPromptShown = true;
         if (isFinishing() || isPremiumActive()) {
             return;
         }
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("広告なしで使えます")
-                .setMessage("月額500円、または3,000円の買い切りで広告を表示しません。")
-                .setPositiveButton("詳しく見る", (d, which) -> showPremiumScreen())
-                .setNegativeButton("あとで", null)
-                .create();
-        dialog.setOnShowListener(d -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextSize(20);
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextSize(20);
+        premiumPromptShown = true;
+        prefs().edit().putLong(KEY_PREMIUM_PROMPT_LAST_SHOWN, System.currentTimeMillis()).apply();
+        final Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(0, 0, 0, dp(18));
+        panel.setBackground(premiumPanelBackground());
+        panel.setElevation(dp(12));
+
+        ShibaPremiumView shibaView = new ShibaPremiumView(this);
+        shibaView.setContentDescription("柴犬が広告なしのプレミアムを、吹き出しでおすすめしています");
+        panel.addView(shibaView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(prefersSingleColumnLayout() ? 250 : 230)
+        ));
+
+        TextView title = bodyText("広告なしにするワン");
+        title.setTextSize(scaledTextSize(24));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(dp(18), dp(8), dp(18), dp(2));
+        panel.addView(title, matchWrapWithBottom(2));
+
+        TextView message = bodyText("月額300円で、画面のGoogle広告を表示しません。");
+        message.setTextSize(scaledTextSize(18));
+        message.setGravity(Gravity.CENTER);
+        message.setTextColor(COLOR_MUTED);
+        message.setPadding(dp(22), 0, dp(22), dp(12));
+        panel.addView(message, matchWrapWithBottom(6));
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.VERTICAL);
+        buttons.setPadding(dp(18), 0, dp(18), 0);
+
+        Button detail = dialogButton("会員画面を見る", COLOR_ACCENT, true, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialog.dismiss();
+                showPremiumScreen();
+            }
         });
+        Button later = dialogButton("あとで", COLOR_SECONDARY, false, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                dialog.dismiss();
+            }
+        });
+
+        buttons.addView(detail, matchWrapWithBottom(8));
+        buttons.addView(later, matchWrap());
+        panel.addView(buttons, matchWrap());
+
+        dialog.setContentView(panel);
         dialog.show();
-        applyGlobalBold(dialog);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setLayout(dp(prefersSingleColumnLayout() ? 342 : 360), LinearLayout.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private boolean wasPremiumPromptShownRecently() {
+        long lastShown = prefs().getLong(KEY_PREMIUM_PROMPT_LAST_SHOWN, 0L);
+        return lastShown > 0L && System.currentTimeMillis() - lastShown < PREMIUM_PROMPT_INTERVAL_MILLIS;
+    }
+
+    private GradientDrawable premiumPanelBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(Color.rgb(255, 252, 245));
+        background.setCornerRadius(dp(28));
+        background.setStroke(dp(2), Color.rgb(225, 196, 137));
+        return background;
+    }
+
+    private Button dialogButton(String label, int color, boolean filled, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextSize(scaledTextSize(18));
+        button.setAllCaps(false);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setGravity(Gravity.CENTER);
+        button.setMinHeight(dp(58));
+        button.setPadding(dp(10), dp(8), dp(10), dp(8));
+        applyButtonColors(button, filled ? color : Color.TRANSPARENT, filled ? COLOR_ACCENT : COLOR_LINE);
+        button.setTextColor(filled ? Color.WHITE : color);
+        button.setOnClickListener(listener);
+        return button;
     }
 
     private void addAdBanner() {
@@ -3631,12 +3434,12 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
         LinearLayout ad = new LinearLayout(this);
         ad.setOrientation(LinearLayout.VERTICAL);
-        ad.setPadding(dp(16), dp(12), dp(16), dp(12));
-        ad.setBackground(japaneseBox(Color.rgb(248, 245, 238), 6, 1, COLOR_LINE));
+        ad.setPadding(dp(16), dp(14), dp(16), dp(14));
+        ad.setBackground(japaneseBox(COLOR_SURFACE_TINT, 16, 1, COLOR_LINE));
         ad.setLayoutParams(matchWrapWithBottom(14));
 
         TextView label = bodyText("Google広告");
-        label.setTextSize(18);
+        label.setTextSize(scaledTextSize(18));
         label.setTextColor(COLOR_MUTED);
         ad.addView(label);
 
@@ -3650,7 +3453,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
                 showPremiumScreen();
             }
         });
-        removeAds.setBackground(japaneseBox(COLOR_ACCENT, 6, 1, COLOR_ACCENT));
+        applyButtonColors(removeAds, COLOR_ACCENT, COLOR_ACCENT);
         ad.addView(removeAds);
         root.addView(ad);
     }
@@ -3675,6 +3478,18 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
         }
     }
 
+    private static class PendingReminderSave {
+        final String key;
+        final CalendarEvent event;
+        final boolean finishOnboarding;
+
+        PendingReminderSave(String key, CalendarEvent event, boolean finishOnboarding) {
+            this.key = key;
+            this.event = event;
+            this.finishOnboarding = finishOnboarding;
+        }
+    }
+
     private static class TodoItem {
         final String text;
         boolean done;
@@ -3690,94 +3505,244 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
     private static class ShoppingItem {
         final String name;
         final String amount;
+        final String number;
         boolean bought;
 
-        ShoppingItem(String name, String amount, boolean bought) {
+        ShoppingItem(String name, String amount, String number, boolean bought) {
             this.name = name;
             this.amount = amount;
+            this.number = number;
             this.bought = bought;
         }
     }
 
-    private static class FamilyContact {
-        final String name;
-        final String phone;
+    private class ShibaPremiumView extends View {
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+        private final Path path = new Path();
+        private int shaderWidth = -1;
+        private int shaderHeight = -1;
+        private LinearGradient panelGradient;
+        private RadialGradient faceGradient;
 
-        FamilyContact(String name, String phone) {
-            this.name = name;
-            this.phone = phone;
-        }
-    }
-
-    private class BoldAwareLinearLayout extends LinearLayout {
-        BoldAwareLinearLayout(Context context) {
+        ShibaPremiumView(Context context) {
             super(context);
         }
 
-        @Override
-        public void onViewAdded(View child) {
-            super.onViewAdded(child);
-            applyGlobalBold(child);
+        private void updateShaders(int width, int height) {
+            if (width <= 0 || height <= 0 || (width == shaderWidth && height == shaderHeight)) {
+                return;
+            }
+            shaderWidth = width;
+            shaderHeight = height;
+            float faceRadius = Math.min(width, height) * 0.25f;
+            float cx = width * 0.35f;
+            float cy = height * 0.61f;
+            panelGradient = new LinearGradient(0, 0, 0, height,
+                    Color.rgb(255, 236, 183),
+                    Color.rgb(255, 249, 231),
+                    Shader.TileMode.CLAMP);
+            faceGradient = new RadialGradient(cx - faceRadius * 0.35f, cy - faceRadius * 0.42f, faceRadius * 1.35f,
+                    Color.rgb(245, 176, 83),
+                    Color.rgb(191, 99, 42),
+                    Shader.TileMode.CLAMP);
         }
-    }
 
-    private interface OnStepGraphDaySelectedListener {
-        void onDaySelected(int index, int steps);
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int width = getWidth();
+            int height = getHeight();
+            updateShaders(width, height);
+            float cx = width * 0.35f;
+            float cy = height * 0.61f;
+            float faceRadius = Math.min(width, height) * 0.25f;
+
+            paint.setShader(panelGradient);
+            rect.set(0, 0, width, height - dp(10));
+            canvas.drawRoundRect(rect, dp(28), dp(28), paint);
+            paint.setShader(null);
+
+            paint.setColor(Color.argb(22, 128, 80, 25));
+            rect.set(dp(18), dp(18), width - dp(18), height - dp(24));
+            canvas.drawRoundRect(rect, dp(24), dp(24), paint);
+
+            drawPremiumBadge(canvas, width);
+            drawSparkle(canvas, width * 0.15f, height * 0.24f, dp(12), Color.argb(190, 255, 255, 255));
+            drawSparkle(canvas, width * 0.84f, height * 0.63f, dp(10), Color.argb(170, 176, 137, 57));
+
+            paint.setColor(Color.argb(46, 68, 40, 12));
+            rect.set(cx - faceRadius * 1.05f, cy + faceRadius * 0.6f, cx + faceRadius * 1.18f, cy + faceRadius);
+            canvas.drawOval(rect, paint);
+
+            drawEar(canvas, cx - faceRadius * 0.68f, cy - faceRadius * 0.52f, faceRadius, true);
+            drawEar(canvas, cx + faceRadius * 0.68f, cy - faceRadius * 0.52f, faceRadius, false);
+
+            paint.setShader(faceGradient);
+            rect.set(cx - faceRadius, cy - faceRadius, cx + faceRadius, cy + faceRadius);
+            canvas.drawOval(rect, paint);
+            paint.setShader(null);
+
+            paint.setColor(Color.rgb(255, 244, 220));
+            rect.set(cx - faceRadius * 0.62f, cy - faceRadius * 0.1f, cx + faceRadius * 0.62f, cy + faceRadius * 0.78f);
+            canvas.drawOval(rect, paint);
+
+            paint.setColor(Color.argb(80, 255, 255, 255));
+            rect.set(cx - faceRadius * 0.52f, cy - faceRadius * 0.72f, cx + faceRadius * 0.18f, cy - faceRadius * 0.2f);
+            canvas.drawOval(rect, paint);
+
+            paint.setColor(Color.rgb(63, 45, 35));
+            canvas.drawCircle(cx - faceRadius * 0.34f, cy - faceRadius * 0.18f, faceRadius * 0.075f, paint);
+            canvas.drawCircle(cx + faceRadius * 0.34f, cy - faceRadius * 0.18f, faceRadius * 0.075f, paint);
+
+            paint.setColor(Color.rgb(48, 34, 28));
+            rect.set(cx - faceRadius * 0.13f, cy + faceRadius * 0.04f, cx + faceRadius * 0.13f, cy + faceRadius * 0.18f);
+            canvas.drawOval(rect, paint);
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(2));
+            paint.setColor(Color.rgb(93, 58, 43));
+            rect.set(cx - faceRadius * 0.24f, cy + faceRadius * 0.12f, cx, cy + faceRadius * 0.38f);
+            canvas.drawArc(rect, 8, 70, false, paint);
+            rect.set(cx, cy + faceRadius * 0.12f, cx + faceRadius * 0.24f, cy + faceRadius * 0.38f);
+            canvas.drawArc(rect, 102, 70, false, paint);
+            paint.setStyle(Paint.Style.FILL);
+
+            paint.setColor(Color.argb(105, 218, 85, 82));
+            canvas.drawCircle(cx - faceRadius * 0.55f, cy + faceRadius * 0.16f, faceRadius * 0.11f, paint);
+            canvas.drawCircle(cx + faceRadius * 0.55f, cy + faceRadius * 0.16f, faceRadius * 0.11f, paint);
+
+            drawSpeechBubble(canvas, width, height);
+        }
+
+        private void drawPremiumBadge(Canvas canvas, float width) {
+            float left = width - dp(128);
+            float top = dp(18);
+            float right = width - dp(18);
+            float bottom = dp(54);
+
+            paint.setColor(Color.argb(42, 60, 35, 10));
+            rect.set(left + dp(2), top + dp(4), right + dp(2), bottom + dp(4));
+            canvas.drawRoundRect(rect, dp(18), dp(18), paint);
+
+            paint.setShader(new LinearGradient(left, top, right, bottom,
+                    Color.rgb(129, 83, 27),
+                    Color.rgb(210, 154, 54),
+                    Shader.TileMode.CLAMP));
+            rect.set(left, top, right, bottom);
+            canvas.drawRoundRect(rect, dp(18), dp(18), paint);
+            paint.setShader(null);
+
+            paint.setColor(Color.WHITE);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTextSize(scaledCanvasTextSize(15));
+            canvas.drawText("プレミアム", (left + right) / 2f, top + dp(24), paint);
+        }
+
+        private void drawEar(Canvas canvas, float x, float y, float radius, boolean left) {
+            path.reset();
+            path.moveTo(x, y - radius * 0.62f);
+            path.lineTo(x + (left ? -radius * 0.48f : radius * 0.48f), y + radius * 0.36f);
+            path.lineTo(x + (left ? radius * 0.28f : -radius * 0.28f), y + radius * 0.3f);
+            path.close();
+            paint.setColor(Color.rgb(194, 98, 43));
+            canvas.drawPath(path, paint);
+
+            path.reset();
+            path.moveTo(x, y - radius * 0.34f);
+            path.lineTo(x + (left ? -radius * 0.25f : radius * 0.25f), y + radius * 0.25f);
+            path.lineTo(x + (left ? radius * 0.15f : -radius * 0.15f), y + radius * 0.19f);
+            path.close();
+            paint.setColor(Color.rgb(255, 219, 190));
+            canvas.drawPath(path, paint);
+        }
+
+        private void drawSpeechBubble(Canvas canvas, float width, float height) {
+            float left = width * 0.49f;
+            float top = height * 0.29f;
+            float right = width - dp(18);
+            float bottom = height * 0.82f;
+
+            paint.setColor(Color.argb(45, 51, 31, 12));
+            rect.set(left + dp(5), top + dp(7), right + dp(5), bottom + dp(7));
+            canvas.drawRoundRect(rect, dp(24), dp(24), paint);
+
+            paint.setShader(new LinearGradient(left, top, right, bottom,
+                    Color.WHITE,
+                    Color.rgb(255, 246, 226),
+                    Shader.TileMode.CLAMP));
+            rect.set(left, top, right, bottom);
+            canvas.drawRoundRect(rect, dp(24), dp(24), paint);
+            paint.setShader(null);
+
+            path.reset();
+            path.moveTo(left + dp(14), bottom - dp(30));
+            path.lineTo(left - dp(24), bottom - dp(14));
+            path.lineTo(left + dp(18), bottom - dp(9));
+            path.close();
+            canvas.drawPath(path, paint);
+
+            paint.setColor(COLOR_ACCENT);
+            paint.setStrokeWidth(dp(3));
+            paint.setStyle(Paint.Style.STROKE);
+            canvas.drawRoundRect(rect, dp(24), dp(24), paint);
+            paint.setStyle(Paint.Style.FILL);
+
+            paint.setColor(COLOR_TEXT);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTextSize(scaledCanvasTextSize(17));
+            canvas.drawText("広告を", (left + right) / 2f, top + (bottom - top) * 0.38f, paint);
+            canvas.drawText("消すワン!", (left + right) / 2f, top + (bottom - top) * 0.64f, paint);
+        }
+
+        private void drawSparkle(Canvas canvas, float cx, float cy, float size, int color) {
+            path.reset();
+            path.moveTo(cx, cy - size);
+            path.lineTo(cx + size * 0.25f, cy - size * 0.25f);
+            path.lineTo(cx + size, cy);
+            path.lineTo(cx + size * 0.25f, cy + size * 0.25f);
+            path.lineTo(cx, cy + size);
+            path.lineTo(cx - size * 0.25f, cy + size * 0.25f);
+            path.lineTo(cx - size, cy);
+            path.lineTo(cx - size * 0.25f, cy - size * 0.25f);
+            path.close();
+            paint.setColor(color);
+            canvas.drawPath(path, paint);
+        }
     }
 
     private class StepGraphView extends View {
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF barRect = new RectF();
         private final String[] labels = {"月", "火", "水", "木", "金", "土", "日"};
         private int[] steps = new int[7];
-        private int selectedIndex = 6;
-        private OnStepGraphDaySelectedListener onDaySelectedListener;
 
         StepGraphView(Context context) {
             super(context);
-            setClickable(true);
-            setContentDescription("最近7日間の日別歩数グラフ");
         }
 
         void setSteps(int[] values) {
             steps = values;
+            setContentDescription(buildGraphContentDescription(values));
             invalidate();
         }
 
-        void setSelectedIndex(int index) {
-            selectedIndex = Math.max(0, Math.min(steps.length - 1, index));
-            invalidate();
-        }
-
-        void setOnDaySelectedListener(OnStepGraphDaySelectedListener listener) {
-            onDaySelectedListener = listener;
-        }
-
-        @Override
-        public boolean onTouchEvent(MotionEvent event) {
-            if (event.getAction() != MotionEvent.ACTION_UP) {
-                return true;
+        private String buildGraphContentDescription(int[] values) {
+            Calendar calendar = Calendar.getInstance(Locale.JAPAN);
+            calendar.add(Calendar.DAY_OF_YEAR, -6);
+            StringBuilder builder = new StringBuilder("7日間の歩数");
+            for (int i = 0; i < values.length; i++) {
+                int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+                builder.append("、")
+                        .append(labels[(dayOfWeek + 5) % 7])
+                        .append(" ")
+                        .append(values[i])
+                        .append("歩");
+                calendar.add(Calendar.DAY_OF_YEAR, 1);
             }
-            int left = dp(8);
-            int right = getWidth() - dp(8);
-            if (event.getX() < left || event.getX() > right) {
-                return true;
-            }
-            float segmentWidth = (right - left) / (float) steps.length;
-            int index = (int) ((event.getX() - left) / segmentWidth);
-            selectedIndex = Math.max(0, Math.min(steps.length - 1, index));
-            setContentDescription(formatWeeklyStepSelection(selectedIndex, steps[selectedIndex]));
-            invalidate();
-            performClick();
-            if (onDaySelectedListener != null) {
-                onDaySelectedListener.onDaySelected(selectedIndex, steps[selectedIndex]);
-            }
-            return true;
-        }
-
-        @Override
-        public boolean performClick() {
-            super.performClick();
-            return true;
+            return builder.toString();
         }
 
         @Override
@@ -3788,7 +3753,7 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             int left = dp(8);
             int right = width - dp(8);
             int top = dp(8);
-            int bottom = height - dp(54);
+            int bottom = height - dp(30);
             int chartHeight = bottom - top;
             int max = 1;
             for (int value : steps) {
@@ -3799,35 +3764,25 @@ public class MainActivity extends Activity implements SensorEventListener, TextT
             paint.setColor(COLOR_LINE);
             canvas.drawLine(left, bottom, right, bottom, paint);
 
-            float segmentWidth = (right - left) / (float) steps.length;
-            float gap = dp(6);
-            float barWidth = segmentWidth - gap;
+            float gap = dp(8);
+            float barWidth = (right - left - gap * (steps.length - 1)) / steps.length;
             Calendar calendar = Calendar.getInstance(Locale.JAPAN);
             calendar.add(Calendar.DAY_OF_YEAR, -6);
             for (int i = 0; i < steps.length; i++) {
-                float x = left + i * segmentWidth + gap / 2f;
+                float x = left + i * (barWidth + gap);
                 float ratio = steps[i] / (float) max;
                 float barTop = bottom - Math.max(dp(8), chartHeight * ratio);
-                paint.setColor(i == selectedIndex ? COLOR_ACCENT : COLOR_PRIMARY);
-                RectF bar = new RectF(x, barTop, x + barWidth, bottom);
-                canvas.drawRoundRect(bar, dp(4), dp(4), paint);
+                paint.setColor(i == steps.length - 1 ? COLOR_ACCENT : COLOR_PRIMARY);
+                barRect.set(x, barTop, x + barWidth, bottom);
+                canvas.drawRoundRect(barRect, dp(4), dp(4), paint);
 
-                paint.setColor(i == selectedIndex ? COLOR_TEXT : COLOR_MUTED);
+                paint.setColor(COLOR_MUTED);
                 paint.setTextAlign(Paint.Align.CENTER);
-                paint.setTypeface(i == selectedIndex ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-                paint.setTextSize(dp(12));
-                float centerX = x + barWidth / 2;
-                canvas.drawText(
-                        (calendar.get(Calendar.MONTH) + 1) + "/" + calendar.get(Calendar.DAY_OF_MONTH),
-                        centerX,
-                        height - dp(26),
-                        paint
-                );
+                paint.setTextSize(scaledCanvasTextSize(13));
                 int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-                canvas.drawText(labels[(dayOfWeek + 5) % 7], centerX, height - dp(7), paint);
+                canvas.drawText(labels[(dayOfWeek + 5) % 7], x + barWidth / 2, height - dp(8), paint);
                 calendar.add(Calendar.DAY_OF_YEAR, 1);
             }
-            paint.setTypeface(Typeface.DEFAULT);
         }
     }
 
